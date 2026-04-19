@@ -14,6 +14,10 @@ import {
 	commerceProductGridDefinition,
 } from "./blocks";
 import { commerceWebsiteBuilderDocuments } from "./documents";
+import {
+	commerceOrdersAccountTab,
+	commerceWebsiteBuilderSiteFrameExtension,
+} from "./sdk";
 
 export const commerceWebsiteBuilderModule: WebsiteBuilderModule = {
 	module: "commerce-website-builder",
@@ -36,4 +40,6 @@ export const commerceWebsiteBuilderKit: WebsiteBuilderInstallableKit =
 		label: "Commerce Website Builder",
 		modules: [commerceWebsiteBuilderModule],
 		documents: commerceWebsiteBuilderDocuments,
+		siteFrameExtensions: [commerceWebsiteBuilderSiteFrameExtension],
+		accountTabs: [commerceOrdersAccountTab],
 	});

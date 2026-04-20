@@ -16,6 +16,12 @@ import {
 	Steps,
 } from "@init-modules/ui";
 import {
+	createWebsiteBuilderFormFieldsField,
+	defineWebsiteBuilderForm,
+	WebsiteBuilderForm,
+	type WebsiteBuilderFormFieldDefinition,
+} from "@init-modules/website-builder/forms";
+import {
 	createWebsiteBuilderLocalizedDefault,
 	defineWebsiteBuilderBlockDefinition,
 	EditableText,
@@ -40,10 +46,30 @@ type CommerceCheckoutFormProps = {
 	eyebrow: string;
 	title: string;
 	body: string;
-	nameLabel: string;
-	emailLabel: string;
-	phoneLabel: string;
+	breadcrumbCartLabel: string;
+	breadcrumbCheckoutLabel: string;
+	cartEyebrow: string;
+	cartTitle: string;
+	cartCheckoutLabel: string;
+	cartEmptyTitle: string;
+	cartEmptyBody: string;
+	cartStepTitle: string;
+	cartStepDescription: string;
+	checkoutStepTitle: string;
+	checkoutStepDescription: string;
+	doneStepTitle: string;
+	doneStepDescription: string;
+	summaryTitle: string;
+	summaryTotalLabel: string;
+	summaryEmptyBody: string;
+	summaryReturnLabel: string;
+	fields: WebsiteBuilderFormFieldDefinition[];
+	nameLabel?: string;
+	emailLabel?: string;
+	phoneLabel?: string;
 	submitLabel: string;
+	savingLabel: string;
+	errorLabel: string;
 	successTitle: string;
 	cartHref: string;
 };
@@ -51,6 +77,94 @@ type CommerceCheckoutFormProps = {
 type CheckoutStepKey = "cart" | "checkout" | "done";
 
 const checkoutStepKeys: CheckoutStepKey[] = ["cart", "checkout", "done"];
+
+const checkoutDefaultFields: WebsiteBuilderFormFieldDefinition[] = [
+		{
+			id: "name",
+			name: "name",
+			type: "text",
+			label: "Name",
+			required: true,
+			width: "full",
+			locked: true,
+			removable: false,
+		},
+		{
+			id: "email",
+			name: "email",
+			type: "email",
+			label: "Email",
+			required: true,
+			width: "full",
+			locked: true,
+			removable: false,
+		},
+		{
+			id: "phone",
+			name: "phone",
+			type: "phone",
+			label: "Phone",
+			required: true,
+			width: "full",
+			locked: true,
+			removable: false,
+		},
+	];
+
+const checkoutFormDefinition = defineWebsiteBuilderForm({
+	id: "commerce.checkout",
+	mode: "extendable",
+	defaultFields: checkoutDefaultFields,
+	policy: {
+		allowedFieldTypes: [
+			"text",
+			"email",
+			"phone",
+			"number",
+			"textarea",
+			"select",
+			"checkbox",
+			"date",
+			"hidden",
+		],
+		requiredFieldIds: ["name", "email", "phone"],
+		lockedFieldIds: ["name", "email", "phone"],
+		allowAddFields: true,
+		allowRemoveFields: false,
+		allowReorder: true,
+		allowEditFieldNames: false,
+	},
+});
+
+const checkoutFormFieldsField = createWebsiteBuilderFormFieldsField("fields", {
+	label: "Checkout fields",
+	description:
+		"Runtime checkout form schema. Required checkout identity fields stay enforced by the commerce form policy; additional fields can be added and reordered.",
+	addLabel: "Add checkout field",
+	allowedFieldTypes: [
+		"text",
+		"email",
+		"phone",
+		"number",
+		"textarea",
+		"select",
+		"checkbox",
+		"date",
+		"hidden",
+	],
+	defaultItem: {
+		id: "custom_field",
+		name: "custom_field",
+		type: "text",
+		label: "Custom field",
+		placeholder: "",
+		helpText: "",
+		required: false,
+		width: "full",
+		locked: false,
+		removable: true,
+	},
+});
 
 const readCheckoutStepIndex = () => {
 	if (typeof window === "undefined") {
@@ -194,21 +308,89 @@ const CommerceCheckoutForm = ({
 		};
 	}, [cart, client, mode, setCart]);
 
+	const ru = contentLocale === "ru";
+	const fallbackText = {
+		breadcrumbCartLabel: ru ? "Корзина" : "Cart",
+		breadcrumbCheckoutLabel: ru ? "Оформить заказ" : "Checkout",
+		cartCheckoutLabel: ru ? "Оформить заказ" : "Checkout",
+		cartEmptyBody: ru
+			? "Добавьте товар из каталога, чтобы перейти к оформлению."
+			: "Add a catalog item to start checkout.",
+		cartEmptyTitle: ru ? "Корзина пуста" : "Your cart is empty",
+		cartEyebrow: ru ? "Корзина" : "Cart",
+		cartStepDescription: ru ? "Проверьте позиции" : "Review items",
+		cartStepTitle: ru ? "Корзина" : "Cart",
+		cartTitle: ru ? "Ваша корзина" : "Your cart",
+		checkoutStepDescription: ru ? "Контакты и заказ" : "Contacts and order",
+		checkoutStepTitle: ru ? "Оформление" : "Checkout",
+		doneStepDescription: ru ? "Заказ создан" : "Order placed",
+		doneStepTitle: ru ? "Готово" : "Done",
+		errorLabel: ru ? "Не удалось разместить заказ" : "Unable to place order",
+		savingLabel: ru ? "Размещаем..." : "Placing...",
+		submitLabel: ru ? "Разместить заказ" : "Place order",
+		successTitle: ru ? "Заказ создан" : "Order placed",
+		summaryEmptyBody: ru ? "Корзина пуста." : "Cart is empty.",
+		summaryReturnLabel: ru ? "Вернуться в корзину" : "Return to cart",
+		summaryTitle: ru ? "Корзина" : "Cart",
+		summaryTotalLabel: ru ? "Итого" : "Total",
+	};
+	const getFallbackText = (key: keyof typeof fallbackText) =>
+		String(block.props[key] ?? fallbackText[key]);
+
 	const steps = [
 		{
-			title: contentLocale === "ru" ? "Корзина" : "Cart",
-			description:
-				contentLocale === "ru" ? "Проверьте позиции" : "Review items",
+			title: (
+				<EditableText
+					blockId={block.id}
+					path="cartStepTitle"
+					placeholder={getFallbackText("cartStepTitle")}
+					className="font-semibold"
+				/>
+			),
+			description: (
+				<EditableText
+					blockId={block.id}
+					path="cartStepDescription"
+					placeholder={getFallbackText("cartStepDescription")}
+					className="text-xs"
+				/>
+			),
 		},
 		{
-			title: contentLocale === "ru" ? "Оформление" : "Checkout",
-			description:
-				contentLocale === "ru" ? "Контакты и заказ" : "Contacts and order",
+			title: (
+				<EditableText
+					blockId={block.id}
+					path="checkoutStepTitle"
+					placeholder={getFallbackText("checkoutStepTitle")}
+					className="font-semibold"
+				/>
+			),
+			description: (
+				<EditableText
+					blockId={block.id}
+					path="checkoutStepDescription"
+					placeholder={getFallbackText("checkoutStepDescription")}
+					className="text-xs"
+				/>
+			),
 		},
 		{
-			title: contentLocale === "ru" ? "Готово" : "Done",
-			description:
-				contentLocale === "ru" ? "Заказ создан" : "Order placed",
+			title: (
+				<EditableText
+					blockId={block.id}
+					path="doneStepTitle"
+					placeholder={getFallbackText("doneStepTitle")}
+					className="font-semibold"
+				/>
+			),
+			description: (
+				<EditableText
+					blockId={block.id}
+					path="doneStepDescription"
+					placeholder={getFallbackText("doneStepDescription")}
+					className="text-xs"
+				/>
+			),
 		},
 	];
 	const setItemQuantity = (itemId: string, nextQuantity: number) => {
@@ -221,17 +403,23 @@ const CommerceCheckoutForm = ({
 	const items = cart?.items ?? [];
 	const hasItems = items.length > 0;
 	const isCartStep = !order && stepIndex === 0;
-	const headerEyebrow = isCartStep
-		? contentLocale === "ru"
-			? "Корзина"
-			: "Cart"
-		: block.props.eyebrow;
-	const headerTitle = isCartStep
-		? contentLocale === "ru"
-			? "Ваша корзина"
-			: "Your cart"
-		: block.props.title;
-	const headerBody = isCartStep ? null : block.props.body;
+	const checkoutFields =
+		Array.isArray(block.props.fields) && block.props.fields.length > 0
+			? block.props.fields
+			: [
+					{
+						...checkoutDefaultFields[0]!,
+						label: block.props.nameLabel ?? checkoutDefaultFields[0]!.label,
+					},
+					{
+						...checkoutDefaultFields[1]!,
+						label: block.props.emailLabel ?? checkoutDefaultFields[1]!.label,
+					},
+					{
+						...checkoutDefaultFields[2]!,
+						label: block.props.phoneLabel ?? checkoutDefaultFields[2]!.label,
+					},
+				];
 	const cartList = (
 		<div className={`mt-8 overflow-hidden ${cx.surface}`}>
 			{hasItems ? (
@@ -295,7 +483,12 @@ const CommerceCheckoutForm = ({
 					))}
 					<div className={`flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between ${cx.mutedSurface}`}>
 						<div>
-							<div className={`text-sm ${cx.mutedText}`}>Total</div>
+							<EditableText
+								blockId={block.id}
+								path="summaryTotalLabel"
+								placeholder={getFallbackText("summaryTotalLabel")}
+								className={`block text-sm ${cx.mutedText}`}
+							/>
 							<div className="text-2xl font-semibold">
 								{formatCommerceMoney(
 									cart?.total_amount,
@@ -309,20 +502,29 @@ const CommerceCheckoutForm = ({
 							onClick={() => pushCheckoutStep(1)}
 							className={cx.primaryButton}
 						>
-							{contentLocale === "ru" ? "Оформить заказ" : "Checkout"}
+							<EditableText
+								blockId={block.id}
+								path="cartCheckoutLabel"
+								placeholder={getFallbackText("cartCheckoutLabel")}
+								className="font-semibold"
+							/>
 						</button>
 					</div>
 				</>
 			) : (
 				<div className={cx.empty}>
-					<div className={`text-lg font-semibold ${cx.strongText}`}>
-						{contentLocale === "ru" ? "Корзина пуста" : "Your cart is empty"}
-					</div>
-					<div className={`mt-3 text-sm leading-7 ${cx.mutedText}`}>
-						{contentLocale === "ru"
-							? "Добавьте товар из каталога, чтобы перейти к оформлению."
-							: "Add a catalog item to start checkout."}
-					</div>
+					<EditableText
+						blockId={block.id}
+						path="cartEmptyTitle"
+						placeholder={getFallbackText("cartEmptyTitle")}
+						className={`text-lg font-semibold ${cx.strongText}`}
+					/>
+					<EditableTextarea
+						blockId={block.id}
+						path="cartEmptyBody"
+						placeholder={getFallbackText("cartEmptyBody")}
+						className={`mt-3 text-sm leading-7 ${cx.mutedText}`}
+					/>
 				</div>
 			)}
 		</div>
@@ -335,12 +537,24 @@ const CommerceCheckoutForm = ({
 					<BreadcrumbList>
 						<BreadcrumbItem>
 							<WebsiteBuilderLink href={block.props.cartHref}>
-								{contentLocale === "ru" ? "Корзина" : "Cart"}
+								<EditableText
+									blockId={block.id}
+									path="breadcrumbCartLabel"
+									placeholder={getFallbackText("breadcrumbCartLabel")}
+									className="font-medium"
+								/>
 							</WebsiteBuilderLink>
 						</BreadcrumbItem>
 						<BreadcrumbSeparator />
 						<BreadcrumbItem>
-							<BreadcrumbPage>{block.props.title}</BreadcrumbPage>
+							<BreadcrumbPage>
+								<EditableText
+									blockId={block.id}
+									path="breadcrumbCheckoutLabel"
+									placeholder={getFallbackText("breadcrumbCheckoutLabel")}
+									className="font-medium"
+								/>
+							</BreadcrumbPage>
 						</BreadcrumbItem>
 					</BreadcrumbList>
 				</Breadcrumb>
@@ -360,10 +574,19 @@ const CommerceCheckoutForm = ({
 					<div>
 					{isCartStep ? (
 						<>
-							<div className={cx.eyebrow}>{headerEyebrow}</div>
-							<h1 className="mt-3 block text-3xl font-semibold leading-tight sm:text-5xl">
-								{headerTitle}
-							</h1>
+							<EditableText
+								blockId={block.id}
+								path="cartEyebrow"
+								placeholder={getFallbackText("cartEyebrow")}
+								className={cx.eyebrow}
+							/>
+							<EditableText
+								blockId={block.id}
+								path="cartTitle"
+								placeholder={getFallbackText("cartTitle")}
+								as="h1"
+								className="mt-3 block text-3xl font-semibold leading-tight sm:text-5xl"
+							/>
 						</>
 					) : (
 						<>
@@ -380,7 +603,7 @@ const CommerceCheckoutForm = ({
 							/>
 						</>
 					)}
-					{headerBody ? (
+					{!isCartStep ? (
 						<EditableTextarea
 							blockId={block.id}
 							path="body"
@@ -390,9 +613,12 @@ const CommerceCheckoutForm = ({
 
 					{order ? (
 						<div className={`mt-8 p-5 ${cx.successPanel}`}>
-							<div className="text-lg font-semibold">
-								{block.props.successTitle}
-							</div>
+							<EditableText
+								blockId={block.id}
+								path="successTitle"
+								placeholder={getFallbackText("successTitle")}
+								className="text-lg font-semibold"
+							/>
 							<div className={`mt-2 text-sm ${cx.mutedText}`}>
 								{order.number}
 							</div>
@@ -400,11 +626,21 @@ const CommerceCheckoutForm = ({
 					) : stepIndex === 0 ? (
 						cartList
 					) : (
-						<form
-							className="mt-8 grid gap-4"
-							onSubmit={async (event) => {
-								event.preventDefault();
-
+						<WebsiteBuilderForm
+							blockId={block.id}
+							fieldsPath="fields"
+							definition={checkoutFormDefinition}
+							fields={checkoutFields}
+							disabled={mode !== "preview" || status === "saving"}
+							className="mt-8"
+							classNames={{
+								field: `grid gap-2 text-sm font-medium ${cx.mutedText}`,
+								label: "font-medium",
+								input: cx.input,
+								helpText: `mt-1 text-xs leading-5 ${cx.mutedText}`,
+								checkboxField: `flex items-center gap-3 text-sm font-medium ${cx.mutedText}`,
+							}}
+							onSubmitValues={async (values) => {
 								if (mode !== "preview") {
 									return;
 								}
@@ -414,17 +650,12 @@ const CommerceCheckoutForm = ({
 									return;
 								}
 
-								const form = new FormData(event.currentTarget);
 								setStatus("saving");
 
 								try {
 									const response = await client.checkout({
 										cartId: cart?.id,
-										customerSnapshot: {
-											name: String(form.get("name") ?? ""),
-											email: String(form.get("email") ?? ""),
-											phone: String(form.get("phone") ?? ""),
-										},
+										customerSnapshot: values,
 									});
 									setOrder(response.data);
 									setStatus("idle");
@@ -434,24 +665,6 @@ const CommerceCheckoutForm = ({
 								}
 							}}
 						>
-							{[
-								["name", block.props.nameLabel, "text"],
-								["email", block.props.emailLabel, "email"],
-								["phone", block.props.phoneLabel, "tel"],
-							].map(([name, label, type]) => (
-								<label
-									key={name}
-									className={`grid gap-2 text-sm font-medium ${cx.mutedText}`}
-								>
-									{label}
-									<input
-										name={name}
-										type={type}
-										disabled={mode !== "preview" || status === "saving"}
-										className={cx.input}
-									/>
-								</label>
-							))}
 							<button
 								type="submit"
 								disabled={
@@ -460,21 +673,38 @@ const CommerceCheckoutForm = ({
 									!cart ||
 									cart.items.length === 0
 								}
-								className={`mt-2 ${cx.primaryButton}`}
+								className={`mt-2 sm:col-span-12 ${cx.primaryButton}`}
 							>
-								{status === "saving" ? "Placing..." : block.props.submitLabel}
+								<EditableText
+									blockId={block.id}
+									path={status === "saving" ? "savingLabel" : "submitLabel"}
+									placeholder={
+										status === "saving"
+											? getFallbackText("savingLabel")
+											: getFallbackText("submitLabel")
+									}
+									className="font-semibold"
+								/>
 							</button>
 							{status === "error" ? (
-								<div className={`text-sm ${cx.errorText}`}>
-									Unable to place order
-								</div>
+								<EditableText
+									blockId={block.id}
+									path="errorLabel"
+									placeholder={getFallbackText("errorLabel")}
+									className={`text-sm sm:col-span-12 ${cx.errorText}`}
+								/>
 							) : null}
-						</form>
+						</WebsiteBuilderForm>
 					)}
 					</div>
 
 					{isCartStep ? null : <aside className={`p-5 ${cx.surface}`}>
-					<div className={`text-sm font-semibold ${cx.strongText}`}>Cart</div>
+					<EditableText
+						blockId={block.id}
+						path="summaryTitle"
+						placeholder={getFallbackText("summaryTitle")}
+						className={`text-sm font-semibold ${cx.strongText}`}
+					/>
 					{cart && cart.items.length > 0 ? (
 						<>
 							<div className="mt-4 grid gap-3">
@@ -498,7 +728,12 @@ const CommerceCheckoutForm = ({
 							</div>
 							<div className="mt-5 border-t border-[color:var(--wb-site-border)] pt-4">
 								<div className="flex justify-between gap-4 text-base font-semibold">
-									<span>Total</span>
+									<EditableText
+										blockId={block.id}
+										path="summaryTotalLabel"
+										placeholder={getFallbackText("summaryTotalLabel")}
+										className="font-semibold"
+									/>
 									<span>
 										{formatCommerceMoney(
 											cart.total_amount,
@@ -511,9 +746,19 @@ const CommerceCheckoutForm = ({
 						</>
 					) : (
 						<div className={`mt-4 text-sm leading-7 ${cx.mutedText}`}>
-							Cart is empty.{" "}
+							<EditableText
+								blockId={block.id}
+								path="summaryEmptyBody"
+								placeholder={getFallbackText("summaryEmptyBody")}
+								className={cx.mutedText}
+							/>{" "}
 							<WebsiteBuilderLink href={block.props.cartHref}>
-								Return to cart
+								<EditableText
+									blockId={block.id}
+									path="summaryReturnLabel"
+									placeholder={getFallbackText("summaryReturnLabel")}
+									className="font-medium"
+								/>
 							</WebsiteBuilderLink>
 							.
 						</div>
@@ -535,6 +780,58 @@ export const commerceCheckoutFormDefinition: WebsiteBuilderBlockDefinition<Comme
 		category: "Commerce",
 		icon: "credit-card",
 		defaults: {
+			breadcrumbCartLabel: createWebsiteBuilderLocalizedDefault({
+				en: "Cart",
+				ru: "Корзина",
+			}),
+			breadcrumbCheckoutLabel: createWebsiteBuilderLocalizedDefault({
+				en: "Checkout",
+				ru: "Оформить заказ",
+			}),
+			cartEyebrow: createWebsiteBuilderLocalizedDefault({
+				en: "Cart",
+				ru: "Корзина",
+			}),
+			cartTitle: createWebsiteBuilderLocalizedDefault({
+				en: "Your cart",
+				ru: "Ваша корзина",
+			}),
+			cartCheckoutLabel: createWebsiteBuilderLocalizedDefault({
+				en: "Checkout",
+				ru: "Оформить заказ",
+			}),
+			cartEmptyTitle: createWebsiteBuilderLocalizedDefault({
+				en: "Your cart is empty",
+				ru: "Корзина пуста",
+			}),
+			cartEmptyBody: createWebsiteBuilderLocalizedDefault({
+				en: "Add a catalog item to start checkout.",
+				ru: "Добавьте товар из каталога, чтобы перейти к оформлению.",
+			}),
+			cartStepTitle: createWebsiteBuilderLocalizedDefault({
+				en: "Cart",
+				ru: "Корзина",
+			}),
+			cartStepDescription: createWebsiteBuilderLocalizedDefault({
+				en: "Review items",
+				ru: "Проверьте позиции",
+			}),
+			checkoutStepTitle: createWebsiteBuilderLocalizedDefault({
+				en: "Checkout",
+				ru: "Оформление",
+			}),
+			checkoutStepDescription: createWebsiteBuilderLocalizedDefault({
+				en: "Contacts and order",
+				ru: "Контакты и заказ",
+			}),
+			doneStepTitle: createWebsiteBuilderLocalizedDefault({
+				en: "Done",
+				ru: "Готово",
+			}),
+			doneStepDescription: createWebsiteBuilderLocalizedDefault({
+				en: "Order placed",
+				ru: "Заказ создан",
+			}),
 			eyebrow: createWebsiteBuilderLocalizedDefault({
 				en: "Checkout",
 				ru: "Оформление",
@@ -556,9 +853,50 @@ export const commerceCheckoutFormDefinition: WebsiteBuilderBlockDefinition<Comme
 				en: "Phone",
 				ru: "Телефон",
 			}),
+			fields: createWebsiteBuilderLocalizedDefault({
+				en: checkoutDefaultFields,
+				ru: [
+					{
+						...checkoutDefaultFields[0]!,
+						label: "Имя",
+					},
+					{
+						...checkoutDefaultFields[1]!,
+						label: "Email",
+					},
+					{
+						...checkoutDefaultFields[2]!,
+						label: "Телефон",
+					},
+				],
+			}),
+			summaryTitle: createWebsiteBuilderLocalizedDefault({
+				en: "Cart",
+				ru: "Корзина",
+			}),
+			summaryTotalLabel: createWebsiteBuilderLocalizedDefault({
+				en: "Total",
+				ru: "Итого",
+			}),
+			summaryEmptyBody: createWebsiteBuilderLocalizedDefault({
+				en: "Cart is empty.",
+				ru: "Корзина пуста.",
+			}),
+			summaryReturnLabel: createWebsiteBuilderLocalizedDefault({
+				en: "Return to cart",
+				ru: "Вернуться в корзину",
+			}),
 			submitLabel: createWebsiteBuilderLocalizedDefault({
 				en: "Place order",
 				ru: "Разместить заказ",
+			}),
+			savingLabel: createWebsiteBuilderLocalizedDefault({
+				en: "Placing...",
+				ru: "Размещаем...",
+			}),
+			errorLabel: createWebsiteBuilderLocalizedDefault({
+				en: "Unable to place order",
+				ru: "Не удалось разместить заказ",
 			}),
 			successTitle: createWebsiteBuilderLocalizedDefault({
 				en: "Order placed",
@@ -567,6 +905,97 @@ export const commerceCheckoutFormDefinition: WebsiteBuilderBlockDefinition<Comme
 			cartHref: "/cart",
 		},
 		fields: [
+			{
+				path: "breadcrumbCartLabel",
+				label: "Breadcrumb cart label",
+				kind: "text",
+				group: "content",
+				localization: "localized",
+			},
+			{
+				path: "breadcrumbCheckoutLabel",
+				label: "Breadcrumb checkout label",
+				kind: "text",
+				group: "content",
+				localization: "localized",
+			},
+			{
+				path: "cartEyebrow",
+				label: "Cart eyebrow",
+				kind: "text",
+				group: "content",
+				localization: "localized",
+			},
+			{
+				path: "cartTitle",
+				label: "Cart title",
+				kind: "text",
+				group: "content",
+				localization: "localized",
+			},
+			{
+				path: "cartCheckoutLabel",
+				label: "Cart checkout label",
+				kind: "text",
+				group: "content",
+				localization: "localized",
+			},
+			{
+				path: "cartEmptyTitle",
+				label: "Cart empty title",
+				kind: "text",
+				group: "content",
+				localization: "localized",
+			},
+			{
+				path: "cartEmptyBody",
+				label: "Cart empty body",
+				kind: "textarea",
+				group: "content",
+				localization: "localized",
+			},
+			{
+				path: "cartStepTitle",
+				label: "Cart step title",
+				kind: "text",
+				group: "content",
+				localization: "localized",
+			},
+			{
+				path: "cartStepDescription",
+				label: "Cart step description",
+				kind: "text",
+				group: "content",
+				localization: "localized",
+			},
+			{
+				path: "checkoutStepTitle",
+				label: "Checkout step title",
+				kind: "text",
+				group: "content",
+				localization: "localized",
+			},
+			{
+				path: "checkoutStepDescription",
+				label: "Checkout step description",
+				kind: "text",
+				group: "content",
+				localization: "localized",
+			},
+			{
+				path: "doneStepTitle",
+				label: "Done step title",
+				kind: "text",
+				group: "content",
+				localization: "localized",
+			},
+			{
+				path: "doneStepDescription",
+				label: "Done step description",
+				kind: "text",
+				group: "content",
+				localization: "localized",
+			},
 			{
 				path: "eyebrow",
 				label: "Eyebrow",
@@ -589,29 +1018,51 @@ export const commerceCheckoutFormDefinition: WebsiteBuilderBlockDefinition<Comme
 				localization: "localized",
 			},
 			{
-				path: "nameLabel",
-				label: "Name label",
+				path: "summaryTitle",
+				label: "Summary title",
 				kind: "text",
 				group: "content",
 				localization: "localized",
 			},
 			{
-				path: "emailLabel",
-				label: "Email label",
+				path: "summaryTotalLabel",
+				label: "Summary total label",
 				kind: "text",
 				group: "content",
 				localization: "localized",
 			},
 			{
-				path: "phoneLabel",
-				label: "Phone label",
+				path: "summaryEmptyBody",
+				label: "Summary empty body",
 				kind: "text",
 				group: "content",
 				localization: "localized",
 			},
+			{
+				path: "summaryReturnLabel",
+				label: "Summary return label",
+				kind: "text",
+				group: "content",
+				localization: "localized",
+			},
+			checkoutFormFieldsField,
 			{
 				path: "submitLabel",
 				label: "Submit label",
+				kind: "text",
+				group: "content",
+				localization: "localized",
+			},
+			{
+				path: "savingLabel",
+				label: "Saving label",
+				kind: "text",
+				group: "content",
+				localization: "localized",
+			},
+			{
+				path: "errorLabel",
+				label: "Error label",
 				kind: "text",
 				group: "content",
 				localization: "localized",
@@ -631,5 +1082,51 @@ export const commerceCheckoutFormDefinition: WebsiteBuilderBlockDefinition<Comme
 				localization: "shared",
 			},
 		],
+		localizationSchema: {
+			localized: [
+				"body",
+				"breadcrumbCartLabel",
+				"breadcrumbCheckoutLabel",
+				"cartCheckoutLabel",
+				"cartEmptyBody",
+				"cartEmptyTitle",
+				"cartEyebrow",
+				"cartStepDescription",
+				"cartStepTitle",
+				"cartTitle",
+				"checkoutStepDescription",
+				"checkoutStepTitle",
+				"doneStepDescription",
+				"doneStepTitle",
+				"emailLabel",
+				"errorLabel",
+				"eyebrow",
+				"fields.*.helpText",
+				"fields.*.label",
+				"fields.*.options.*.label",
+				"fields.*.placeholder",
+				"nameLabel",
+				"phoneLabel",
+				"savingLabel",
+				"submitLabel",
+				"successTitle",
+				"summaryEmptyBody",
+				"summaryReturnLabel",
+				"summaryTitle",
+				"summaryTotalLabel",
+				"title",
+			],
+			shared: [
+				"cartHref",
+				"fields.*.id",
+				"fields.*.locked",
+				"fields.*.name",
+				"fields.*.options.*.value",
+				"fields.*.removable",
+				"fields.*.required",
+				"fields.*.type",
+				"fields.*.width",
+			],
+		},
 		component: CommerceCheckoutForm,
 	});

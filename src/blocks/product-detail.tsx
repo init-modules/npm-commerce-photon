@@ -4,8 +4,10 @@ import {
 	createWebsiteBuilderLocalizedDefault,
 	defineWebsiteBuilderBlockDefinition,
 	EditableText,
+	EditableTextarea,
 	useWebsiteBuilderI18n,
 	useWebsiteBuilderValueAtPath,
+	WebsiteBuilderLink,
 	type WebsiteBuilderBlockComponentProps,
 	type WebsiteBuilderBlockDefinition,
 } from "@init-modules/website-builder";
@@ -52,25 +54,31 @@ const CommerceProductDetail = ({
 
 				<div className="flex min-w-0 flex-col justify-center">
 					{product?.catalogHref ? (
-						<a
+						<WebsiteBuilderLink
 							href={product.catalogHref}
 							className="mb-6 text-sm font-semibold text-[var(--wb-site-accent)] hover:opacity-80"
 						>
 							{block.props.backLabel}
-						</a>
+						</WebsiteBuilderLink>
 					) : null}
 					<EditableText
 						blockId={block.id}
 						path="eyebrow"
 						className={cx.eyebrow}
 					/>
-					<h1 className="mt-3 text-4xl font-semibold leading-tight sm:text-6xl">
-						{product?.name ?? "Product"}
-					</h1>
+					<EditableText
+						blockId={block.id}
+						path="product.name"
+						as="h1"
+						placeholder="Product"
+						className="mt-3 block text-4xl font-semibold leading-tight sm:text-6xl"
+					/>
 					{block.props.showSku && product?.sku ? (
-						<div className={`mt-4 text-sm uppercase tracking-[0.18em] ${cx.mutedText}`}>
-							{product.sku}
-						</div>
+						<EditableText
+							blockId={block.id}
+							path="product.sku"
+							className={`mt-4 block text-sm uppercase tracking-[0.18em] ${cx.mutedText}`}
+						/>
 					) : null}
 					<div className={`mt-6 text-2xl font-semibold ${cx.strongText}`}>
 						{formatCommerceMoney(
@@ -80,9 +88,11 @@ const CommerceProductDetail = ({
 						)}
 					</div>
 					{block.props.showDescription && product?.description ? (
-						<div className={`mt-6 max-w-2xl text-base leading-8 ${cx.mutedText}`}>
-							{product.description}
-						</div>
+						<EditableTextarea
+							blockId={block.id}
+							path="product.description"
+							className={`mt-6 max-w-2xl text-base leading-8 ${cx.mutedText}`}
+						/>
 					) : null}
 				</div>
 			</div>
@@ -116,7 +126,7 @@ export const commerceProductDetailDefinition: WebsiteBuilderBlockDefinition<Comm
 			product: {
 				source: "commerceProduct",
 				path: "product",
-				mode: "read",
+				mode: "write",
 			},
 		},
 		fields: [

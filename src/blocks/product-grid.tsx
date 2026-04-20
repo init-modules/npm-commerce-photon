@@ -1,6 +1,12 @@
 "use client";
 
 import {
+	createCommerceClient,
+	getCommerceRequest,
+	type CommerceCatalogItemView,
+} from "@init-modules/commerce";
+import { Counter } from "@init-modules/ui";
+import {
 	createWebsiteBuilderLocalizedDefault,
 	defineWebsiteBuilderBlockDefinition,
 	EditableText,
@@ -8,12 +14,25 @@ import {
 	useWebsiteBuilder,
 	useWebsiteBuilderI18n,
 	useWebsiteBuilderValueAtPath,
+	WebsiteBuilderLink,
 	type WebsiteBuilderBlockComponentProps,
 	type WebsiteBuilderBlockDefinition,
 } from "@init-modules/website-builder";
+import debounce from "lodash-es/debounce";
+import {
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+	type CSSProperties,
+} from "react";
 import {
 	commerceBlockClassNames as cx,
+	emitCommerceCartUpdated,
+	findCommerceCartItem,
 	formatCommerceMoney,
+	indexCommerceCartItems,
 	normalizeCommerceProducts,
 } from "./shared";
 
@@ -24,98 +43,357 @@ type CommerceProductGridProps = {
 	emptyTitle: string;
 	emptyBody: string;
 	cardCtaLabel: string;
+	addToCartLabel: string;
 	columns: number;
 	showDescription: boolean;
 };
 
+const getStockLabel = (locale: string, item: CommerceCatalogItemView) => {
+	if (item.status === "active") {
+		return locale === "ru" ? "В наличии" : "In stock";
+	}
+
+	return item.status ?? (locale === "ru" ? "Доступно" : "Available");
+};
+
+const DetailIcon = () => (
+	<svg aria-hidden="true" viewBox="0 0 20 20" className="h-5 w-5">
+		<path
+			d="M4 10h9m-3-3 3 3-3 3"
+			fill="none"
+			stroke="currentColor"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+			strokeWidth="1.8"
+		/>
+	</svg>
+);
+
+const FavoriteIcon = () => (
+	<svg aria-hidden="true" viewBox="0 0 20 20" className="h-5 w-5">
+		<path
+			d="M10 16.5 3.9 10.8C.6 7.6 5.1 2.4 10 7.4c4.9-5 9.4.2 6.1 3.4L10 16.5Z"
+			fill="none"
+			stroke="currentColor"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+			strokeWidth="1.55"
+		/>
+	</svg>
+);
+
 const CommerceProductGrid = ({
 	block,
 }: WebsiteBuilderBlockComponentProps<CommerceProductGridProps>) => {
-	const { mode } = useWebsiteBuilder();
 	const { contentLocale } = useWebsiteBuilderI18n();
+	const { mode } = useWebsiteBuilder();
 	const items = normalizeCommerceProducts(
 		useWebsiteBuilderValueAtPath(block.id, "items"),
 	);
-	const columns = Math.min(Math.max(Number(block.props.columns || 3), 1), 4);
+	const columns = Math.min(Math.max(Number(block.props.columns || 3), 1), 5);
+	const addToCartLabel =
+		block.props.addToCartLabel ||
+		(contentLocale === "ru" ? "В корзину" : "Add to cart");
+	const itemIds = items.map((item) => item.id).join("|");
+	const client = useMemo(
+		() => createCommerceClient(getCommerceRequest()),
+		[],
+	);
+	const [cartLines, setCartLines] = useState<
+		Record<string, { id: string; quantity: number }>
+	>({});
+	const [itemStatuses, setItemStatuses] = useState<
+		Record<string, "idle" | "loading" | "error">
+	>({});
+	const cartLinesRef = useRef(cartLines);
+	const interactive = mode === "preview";
+
+	useEffect(() => {
+		cartLinesRef.current = cartLines;
+	}, [cartLines]);
+
+	useEffect(() => {
+		if (!interactive || items.length === 0) {
+			setCartLines({});
+			return;
+		}
+
+		let active = true;
+
+		client
+			.getCurrentCart()
+			.then((response) => {
+				if (active) {
+					setCartLines(indexCommerceCartItems(response.data));
+				}
+			})
+			.catch(() => undefined);
+
+		return () => {
+			active = false;
+		};
+	}, [client, interactive, itemIds]);
+
+	const setItemStatus = (
+		itemId: string,
+		status: "idle" | "loading" | "error",
+	) =>
+		setItemStatuses((currentStatuses) => ({
+			...currentStatuses,
+			[itemId]: status,
+		}));
+
+	const syncItemQuantityNow = useCallback(
+		async (item: CommerceCatalogItemView, nextQuantity: number) => {
+			if (!interactive) {
+				return;
+			}
+
+			setItemStatus(item.id, "loading");
+
+			try {
+				const currentLine = cartLinesRef.current[item.id];
+				const response =
+					nextQuantity <= 0
+						? currentLine?.id
+							? await client.removeCartItem(currentLine.id)
+							: await client.getCurrentCart()
+						: currentLine?.id
+							? await client.updateCartItem(currentLine.id, {
+									quantity: nextQuantity,
+								})
+							: await client.addCartItem({
+									catalogItemId: item.id,
+									quantity: nextQuantity,
+									replace: true,
+								});
+
+				const line = findCommerceCartItem(response.data, item);
+
+				emitCommerceCartUpdated(response.data);
+				setCartLines((currentLines) => {
+					const nextLines = { ...currentLines };
+
+					if (line) {
+						nextLines[item.id] = {
+							id: line.id,
+							quantity: line.quantity,
+						};
+					} else {
+						delete nextLines[item.id];
+					}
+
+					return nextLines;
+				});
+				setItemStatus(item.id, "idle");
+			} catch {
+				setItemStatus(item.id, "error");
+			}
+		},
+		[client, interactive],
+	);
+
+	const syncItemQuantity = useMemo(
+		() =>
+			debounce(
+				(item: CommerceCatalogItemView, nextQuantity: number) => {
+					void syncItemQuantityNow(item, nextQuantity);
+				},
+				350,
+			),
+		[syncItemQuantityNow],
+	);
+
+	useEffect(
+		() => () => {
+			syncItemQuantity.cancel();
+		},
+		[syncItemQuantity],
+	);
+
+	const queueItemQuantity = (
+		item: CommerceCatalogItemView,
+		nextQuantity: number,
+	) => {
+		if (!interactive) {
+			return;
+		}
+
+		setCartLines((currentLines) => ({
+			...currentLines,
+			[item.id]: {
+				id: currentLines[item.id]?.id ?? "",
+				quantity: nextQuantity,
+			},
+		}));
+		syncItemQuantity(item, nextQuantity);
+	};
 
 	return (
-		<section className={`${cx.section} py-12`}>
-			<div className="mx-auto max-w-6xl">
-				<div className="max-w-3xl">
-					<EditableText
-						blockId={block.id}
-						path="eyebrow"
-						className={cx.eyebrow}
-					/>
-					<EditableText
-						blockId={block.id}
-						path="title"
-						as="h1"
-						className="mt-3 block text-3xl font-semibold leading-tight sm:text-5xl"
-					/>
-					<EditableTextarea
-						blockId={block.id}
-						path="body"
-						className={`mt-4 max-w-2xl text-base leading-7 ${cx.mutedText}`}
-					/>
+		<section className={`${cx.section} py-12 sm:py-16`}>
+			<div className="mx-auto max-w-[96rem]">
+				<div className="flex items-start justify-between gap-6">
+					<div className="max-w-3xl">
+						<EditableText
+							blockId={block.id}
+							path="eyebrow"
+							className={cx.eyebrow}
+						/>
+						<EditableText
+							blockId={block.id}
+							path="title"
+							as="h1"
+							className="mt-3 block text-3xl font-semibold leading-tight sm:text-5xl"
+						/>
+						<EditableTextarea
+							blockId={block.id}
+							path="body"
+							className={`mt-4 max-w-2xl text-base leading-7 ${cx.mutedText}`}
+						/>
+					</div>
+					<div className="hidden shrink-0 items-center gap-2 sm:flex">
+						<button
+							type="button"
+							aria-label="Previous catalog items"
+							className={`flex h-11 w-11 items-center justify-center rounded-lg border border-[color:var(--wb-site-border)] ${cx.mutedText}`}
+						>
+							‹
+						</button>
+						<button
+							type="button"
+							aria-label="Next catalog items"
+							className={`flex h-11 w-11 items-center justify-center rounded-lg border border-[color:var(--wb-site-border)] ${cx.mutedText}`}
+						>
+							›
+						</button>
+					</div>
 				</div>
 
 				{items.length > 0 ? (
 					<div
-						className="mt-8 grid gap-4"
-						style={{
-							gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`,
-						}}
+						className="mt-10 grid justify-start gap-x-7 gap-y-10 [grid-template-columns:repeat(auto-fill,minmax(min(16rem,100%),18rem))] xl:grid-cols-[repeat(var(--commerce-grid-columns),minmax(0,1fr))] xl:justify-stretch"
+						style={
+							{
+								"--commerce-grid-columns": columns,
+							} as CSSProperties
+						}
 					>
-						{items.map((item) => (
-							<a
-								key={item.id}
-								href={item.href ?? `/catalog/${item.slug}`}
-								onClick={(event) => {
-									if (mode !== "preview") {
-										event.preventDefault();
-									}
-								}}
-								className={cx.card}
-							>
-								{item.coverImage ? (
-									<div className={`aspect-[4/3] ${cx.mutedSurface}`}>
-										<img
-											src={item.coverImage}
-											alt={item.name}
-											className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-										/>
-									</div>
-								) : null}
-								<div className="flex flex-1 flex-col p-5">
-									{item.sku ? (
-										<div className={`text-xs font-medium uppercase tracking-[0.18em] ${cx.mutedText}`}>
-											{item.sku}
+						{items.map((item, itemIndex) => {
+							const line = cartLines[item.id];
+							const status = itemStatuses[item.id] ?? "idle";
+							const itemHref = item.href ?? `/catalog/${item.slug}`;
+
+							return (
+								<article key={item.id} className="group w-full max-w-[18rem] min-w-0 xl:max-w-none">
+									<WebsiteBuilderLink
+										href={itemHref}
+										className="block min-w-0"
+									>
+										<div className={`relative aspect-[4/3] overflow-hidden rounded-md ${cx.mutedSurface}`}>
+											{item.coverImage ? (
+												<img
+													src={item.coverImage}
+													alt={item.name}
+													className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
+												/>
+											) : (
+												<div className="flex h-full w-full items-center justify-center bg-[color-mix(in_oklab,var(--wb-site-surface)_70%,var(--wb-site-accent))] p-6 text-center">
+													<div className={`max-w-[12rem] text-xs font-semibold uppercase tracking-[0.2em] ${cx.mutedText}`}>
+														{item.sku ?? item.name}
+													</div>
+												</div>
+											)}
 										</div>
-									) : null}
-									<div className={`mt-2 text-lg font-semibold leading-7 ${cx.strongText}`}>
-										{item.name}
-									</div>
-									{block.props.showDescription && item.description ? (
-										<div className={`mt-3 line-clamp-3 text-sm leading-6 ${cx.mutedText}`}>
-											{item.description}
-										</div>
-									) : null}
-									<div className="mt-auto flex items-center justify-between gap-4 pt-5">
-										<div className={`text-base font-semibold ${cx.strongText}`}>
+									</WebsiteBuilderLink>
+									<div className="mt-5">
+										<div className={`text-xl font-semibold tracking-tight ${cx.strongText}`}>
 											{formatCommerceMoney(
 												item.publicPriceAmount,
 												item.currency,
 												contentLocale,
 											)}
 										</div>
-										<div className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--wb-site-accent)]">
-											{block.props.cardCtaLabel}
+										<WebsiteBuilderLink
+											href={itemHref}
+											className={`mt-2 block min-h-12 text-base font-medium leading-6 ${cx.strongText}`}
+										>
+											<EditableText
+												blockId={block.id}
+												path={`items.${itemIndex}.name`}
+												className="line-clamp-2"
+											/>
+										</WebsiteBuilderLink>
+										{block.props.showDescription && item.description ? (
+											<EditableTextarea
+												blockId={block.id}
+												path={`items.${itemIndex}.description`}
+												className={`mt-2 line-clamp-2 text-sm leading-6 ${cx.mutedText}`}
+											/>
+										) : null}
+										<div className={`mt-3 flex items-center gap-3 text-sm ${cx.mutedText}`}>
+											<span>☆ 0.0</span>
+											<span className="inline-flex items-center gap-1 text-[var(--wb-site-accent)]">
+												<span aria-hidden="true">⊙</span>
+												{getStockLabel(contentLocale, item)}
+											</span>
 										</div>
+										<div className="mt-4 flex min-h-11 items-center gap-3">
+											{line?.quantity ? (
+												<Counter
+													value={line.quantity}
+													min={0}
+													disabled={!interactive}
+													valueLabel={addToCartLabel}
+													onValueChange={(nextQuantity) =>
+														setCartLines((currentLines) => ({
+															...currentLines,
+															[item.id]: {
+																id: currentLines[item.id]?.id ?? "",
+																quantity: nextQuantity,
+															},
+														}))
+													}
+													onValueCommit={(nextQuantity) =>
+														syncItemQuantity(item, nextQuantity)
+													}
+													className="h-10 min-w-32 bg-[var(--wb-site-text)] text-[var(--wb-site-background)]"
+													buttonClassName="h-8 w-8 hover:bg-[color-mix(in_oklab,var(--wb-site-background)_14%,transparent)]"
+													valueClassName="h-8"
+												/>
+											) : (
+												<button
+													type="button"
+													disabled={!interactive}
+													onClick={() => queueItemQuantity(item, 1)}
+													className={cx.primaryButton}
+												>
+													{addToCartLabel}
+												</button>
+											)}
+											<button
+												type="button"
+												aria-label={block.props.cardCtaLabel}
+												className={`flex h-10 w-10 items-center justify-center rounded-full transition hover:text-[var(--wb-site-accent)] ${cx.mutedText}`}
+											>
+												<FavoriteIcon />
+											</button>
+											<WebsiteBuilderLink
+												href={itemHref}
+												aria-label={block.props.cardCtaLabel}
+												className={`flex h-10 w-10 items-center justify-center rounded-full transition hover:text-[var(--wb-site-accent)] ${cx.mutedText}`}
+											>
+												<DetailIcon />
+											</WebsiteBuilderLink>
+										</div>
+										{status === "error" ? (
+											<div className={`mt-2 text-sm ${cx.errorText}`}>
+												Unable to update cart
+											</div>
+										) : null}
 									</div>
-								</div>
-							</a>
-						))}
+								</article>
+							);
+						})}
 					</div>
 				) : (
 					<div className={cx.empty}>
@@ -166,6 +444,10 @@ export const commerceProductGridDefinition: WebsiteBuilderBlockDefinition<Commer
 				en: "View product",
 				ru: "Открыть товар",
 			}),
+			addToCartLabel: createWebsiteBuilderLocalizedDefault({
+				en: "Add to cart",
+				ru: "В корзину",
+			}),
 			columns: 3,
 			showDescription: true,
 		},
@@ -173,7 +455,7 @@ export const commerceProductGridDefinition: WebsiteBuilderBlockDefinition<Commer
 			items: {
 				source: "commerceCatalog",
 				path: "items",
-				mode: "read",
+				mode: "write",
 			},
 		},
 		fields: [
@@ -220,13 +502,20 @@ export const commerceProductGridDefinition: WebsiteBuilderBlockDefinition<Commer
 				localization: "localized",
 			},
 			{
+				path: "addToCartLabel",
+				label: "Add to cart label",
+				kind: "text",
+				group: "content",
+				localization: "localized",
+			},
+			{
 				path: "columns",
 				label: "Columns",
 				kind: "number",
 				group: "layout",
 				localization: "shared",
 				min: 1,
-				max: 4,
+				max: 5,
 			},
 			{
 				path: "showDescription",

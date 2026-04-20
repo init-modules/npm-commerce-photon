@@ -1,11 +1,19 @@
 "use client";
 
 import {
-	type CommerceCart,
 	type CommerceOrder,
 	createCommerceClient,
-	createFetchCommerceRequest,
+	getCommerceRequest,
 } from "@init-modules/commerce";
+import { useCommerceCartStore } from "@init-modules/commerce/client";
+import {
+	Breadcrumb,
+	BreadcrumbItem,
+	BreadcrumbList,
+	BreadcrumbPage,
+	BreadcrumbSeparator,
+	Steps,
+} from "@init-modules/ui";
 import {
 	createWebsiteBuilderLocalizedDefault,
 	defineWebsiteBuilderBlockDefinition,
@@ -13,11 +21,17 @@ import {
 	EditableTextarea,
 	useWebsiteBuilder,
 	useWebsiteBuilderI18n,
+	WebsiteBuilderLink,
 	type WebsiteBuilderBlockComponentProps,
 	type WebsiteBuilderBlockDefinition,
 } from "@init-modules/website-builder";
 import { useEffect, useMemo, useState } from "react";
-import { commerceBlockClassNames as cx, formatCommerceMoney } from "./shared";
+import { shallow } from "zustand/shallow";
+import {
+	commerceBlockClassNames as cx,
+	emitCommerceCartUpdated,
+	formatCommerceMoney,
+} from "./shared";
 
 type CommerceCheckoutFormProps = {
 	eyebrow: string;
@@ -34,20 +48,40 @@ type CommerceCheckoutFormProps = {
 const CommerceCheckoutForm = ({
 	block,
 }: WebsiteBuilderBlockComponentProps<CommerceCheckoutFormProps>) => {
-	const { mode } = useWebsiteBuilder();
+	const { mode, requestAuth, resources } = useWebsiteBuilder();
 	const { contentLocale } = useWebsiteBuilderI18n();
-	const [cart, setCart] = useState<CommerceCart | null>(null);
+	const authResource = resources.auth as
+		| { user?: null | Record<string, unknown> }
+		| undefined;
+	const isAuthenticated = Boolean(authResource?.user);
+	const { cart, setCart } = useCommerceCartStore(
+		(state) => ({
+			cart: state.cart,
+			setCart: state.setCart,
+		}),
+		shallow,
+	);
 	const [order, setOrder] = useState<CommerceOrder | null>(null);
 	const [status, setStatus] = useState<"idle" | "loading" | "saving" | "error">(
-		"idle",
+		cart ? "idle" : "loading",
 	);
 	const client = useMemo(
-		() => createCommerceClient(createFetchCommerceRequest()),
+		() => createCommerceClient(getCommerceRequest()),
 		[],
 	);
 
 	useEffect(() => {
+		if (cart && status === "loading") {
+			setStatus("idle");
+		}
+	}, [cart, status]);
+
+	useEffect(() => {
 		if (mode !== "preview") {
+			return;
+		}
+
+		if (cart) {
 			return;
 		}
 
@@ -62,6 +96,7 @@ const CommerceCheckoutForm = ({
 				}
 
 				setCart(response.data);
+				emitCommerceCartUpdated(response.data);
 				setStatus("idle");
 			})
 			.catch(() => {
@@ -75,12 +110,45 @@ const CommerceCheckoutForm = ({
 		return () => {
 			alive = false;
 		};
-	}, [client, mode]);
+	}, [cart, client, mode, setCart]);
+
+	const steps = [
+		{
+			title: contentLocale === "ru" ? "Корзина" : "Cart",
+			description:
+				contentLocale === "ru" ? "Проверьте позиции" : "Review items",
+		},
+		{
+			title: contentLocale === "ru" ? "Оформление" : "Checkout",
+			description:
+				contentLocale === "ru" ? "Контакты и заказ" : "Contacts and order",
+		},
+		{
+			title: contentLocale === "ru" ? "Готово" : "Done",
+			description:
+				contentLocale === "ru" ? "Заказ создан" : "Order placed",
+		},
+	];
 
 	return (
 		<section className={`${cx.section} py-12`}>
-			<div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
-				<div>
+			<div className="mx-auto max-w-5xl">
+				<Breadcrumb className="mb-8">
+					<BreadcrumbList>
+						<BreadcrumbItem>
+							<WebsiteBuilderLink href={block.props.cartHref}>
+								{contentLocale === "ru" ? "Корзина" : "Cart"}
+							</WebsiteBuilderLink>
+						</BreadcrumbItem>
+						<BreadcrumbSeparator />
+						<BreadcrumbItem>
+							<BreadcrumbPage>{block.props.title}</BreadcrumbPage>
+						</BreadcrumbItem>
+					</BreadcrumbList>
+				</Breadcrumb>
+				<Steps current={order ? 2 : 1} className="mb-8" items={steps} />
+				<div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
+					<div>
 					<EditableText
 						blockId={block.id}
 						path="eyebrow"
@@ -114,6 +182,11 @@ const CommerceCheckoutForm = ({
 								event.preventDefault();
 
 								if (mode !== "preview") {
+									return;
+								}
+
+								if (!isAuthenticated) {
+									requestAuth?.();
 									return;
 								}
 
@@ -173,9 +246,9 @@ const CommerceCheckoutForm = ({
 							) : null}
 						</form>
 					)}
-				</div>
+					</div>
 
-				<aside className={`p-5 ${cx.surface}`}>
+					<aside className={`p-5 ${cx.surface}`}>
 					<div className={`text-sm font-semibold ${cx.strongText}`}>Cart</div>
 					{cart && cart.items.length > 0 ? (
 						<>
@@ -213,10 +286,15 @@ const CommerceCheckoutForm = ({
 						</>
 					) : (
 						<div className={`mt-4 text-sm leading-7 ${cx.mutedText}`}>
-							Cart is empty. <a href={block.props.cartHref}>Return to cart</a>.
+							Cart is empty.{" "}
+							<WebsiteBuilderLink href={block.props.cartHref}>
+								Return to cart
+							</WebsiteBuilderLink>
+							.
 						</div>
 					)}
-				</aside>
+					</aside>
+				</div>
 			</div>
 		</section>
 	);

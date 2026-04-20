@@ -1,4 +1,8 @@
-import type { CommerceCatalogItemView } from "@init-modules/commerce";
+import type {
+	CommerceCart,
+	CommerceCartItem,
+	CommerceCatalogItemView,
+} from "@init-modules/commerce";
 
 export const commerceBlockClassNames = {
 	section:
@@ -84,6 +88,93 @@ export const normalizeCommerceProducts = (
 				return product ? [product] : [];
 			})
 		: [];
+
+export const findCommerceCartItem = (
+	cart: CommerceCart,
+	item: CommerceCatalogItemView,
+): CommerceCartItem | null =>
+	cart.items.find((cartItem) => cartItem.catalog_item_id === item.id) ?? null;
+
+export const indexCommerceCartItems = (
+	cart: CommerceCart,
+): Record<string, { id: string; quantity: number }> =>
+	Object.fromEntries(
+		cart.items
+			.filter((item) => item.catalog_item_id)
+			.map((item) => [
+				item.catalog_item_id,
+				{
+					id: item.id,
+					quantity: item.quantity,
+				},
+			]),
+		);
+
+export const normalizeCommerceCart = (value: unknown): CommerceCart | null => {
+	if (typeof value !== "object" || value === null) {
+		return null;
+	}
+
+	const cart = value as CommerceCart;
+
+	return Array.isArray(cart.items) && typeof cart.id === "string" ? cart : null;
+};
+
+export const getCommerceCartFromResources = (
+	resources: Record<string, unknown>,
+): CommerceCart | null => normalizeCommerceCart(resources.commerceCartSummary);
+
+export const applyCommerceCartItemQuantity = (
+	cart: CommerceCart,
+	itemId: string,
+	quantity: number,
+): CommerceCart => {
+	const nextItems = cart.items.flatMap((item) => {
+		if (item.id !== itemId) {
+			return [item];
+		}
+
+		if (quantity <= 0) {
+			return [];
+		}
+
+		return [
+			{
+				...item,
+				quantity,
+				line_base_total: item.base_price * quantity,
+				line_total: item.unit_price * quantity,
+			},
+		];
+	});
+	const subtotal = nextItems.reduce(
+		(total, item) => total + item.line_base_total,
+		0,
+	);
+	const total = nextItems.reduce((sum, item) => sum + item.line_total, 0);
+	const itemsQuantity = nextItems.reduce((sum, item) => sum + item.quantity, 0);
+
+	return {
+		...cart,
+		items: nextItems,
+		item_count: nextItems.length,
+		items_quantity: itemsQuantity,
+		subtotal_amount: subtotal,
+		total_amount: total,
+	};
+};
+
+export const emitCommerceCartUpdated = (cart: CommerceCart) => {
+	if (typeof window === "undefined") {
+		return;
+	}
+
+	window.dispatchEvent(
+		new CustomEvent("commerce-cart-updated", {
+			detail: cart,
+		}),
+	);
+};
 
 export const formatCommerceMoney = (
 	amount: null | number | undefined,

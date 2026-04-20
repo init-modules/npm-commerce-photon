@@ -2,18 +2,27 @@
 
 import {
 	createCommerceClient,
-	createFetchCommerceRequest,
+	getCommerceRequest,
 } from "@init-modules/commerce";
+import { useCommerceCartStore } from "@init-modules/commerce/client";
+import { Counter } from "@init-modules/ui";
 import {
 	createWebsiteBuilderLocalizedDefault,
 	defineWebsiteBuilderBlockDefinition,
 	useWebsiteBuilder,
 	useWebsiteBuilderValueAtPath,
+	WebsiteBuilderLink,
 	type WebsiteBuilderBlockComponentProps,
 	type WebsiteBuilderBlockDefinition,
 } from "@init-modules/website-builder";
-import { useMemo, useState } from "react";
-import { commerceBlockClassNames as cx, normalizeCommerceProduct } from "./shared";
+import debounce from "lodash-es/debounce";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+	commerceBlockClassNames as cx,
+	emitCommerceCartUpdated,
+	findCommerceCartItem,
+	normalizeCommerceProduct,
+} from "./shared";
 
 type CommerceAddToCartProps = {
 	quantityLabel: string;
@@ -29,68 +38,186 @@ const CommerceAddToCart = ({
 	const product = normalizeCommerceProduct(
 		useWebsiteBuilderValueAtPath(block.id, "product"),
 	);
-	const [quantity, setQuantity] = useState(1);
+	const productId = product?.id ?? null;
+	const setCart = useCommerceCartStore((state) => state.setCart);
+	const [cartLine, setCartLine] = useState<null | {
+		id: string;
+		quantity: number;
+	}>(null);
 	const [status, setStatus] = useState<
-		"idle" | "loading" | "success" | "error"
+		"idle" | "loading" | "error"
 	>("idle");
+	const cartLineRef = useRef(cartLine);
 	const client = useMemo(
-		() => createCommerceClient(createFetchCommerceRequest()),
+		() => createCommerceClient(getCommerceRequest()),
 		[],
 	);
-	const disabled = mode !== "preview" || !product || status === "loading";
+	const interactive = mode === "preview";
+	const disabled = !interactive || !product;
+	const loadingLabel = block.props.buttonLabel;
+
+	useEffect(() => {
+		cartLineRef.current = cartLine;
+	}, [cartLine]);
+
+	useEffect(() => {
+		if (!interactive || !productId || !product) {
+			setCartLine(null);
+			return;
+		}
+
+		let active = true;
+
+		client
+			.getCurrentCart()
+			.then((response) => {
+				if (!active) {
+					return;
+				}
+
+				const line = findCommerceCartItem(response.data, product);
+				setCart(response.data);
+				setCartLine(
+					line
+						? {
+								id: line.id,
+								quantity: line.quantity,
+							}
+						: null,
+				);
+			})
+			.catch(() => undefined);
+
+		return () => {
+			active = false;
+		};
+	}, [client, interactive, product, productId, setCart]);
+
+	const syncQuantityNow = useCallback(async (nextQuantity: number) => {
+		if (!product || disabled) {
+			return;
+		}
+
+		setStatus("loading");
+
+		try {
+			if (nextQuantity <= 0) {
+				if (cartLineRef.current?.id) {
+					const response = await client.removeCartItem(cartLineRef.current.id);
+					const line = findCommerceCartItem(response.data, product);
+					setCart(response.data);
+					emitCommerceCartUpdated(response.data);
+					setCartLine(
+						line ? { id: line.id, quantity: line.quantity } : null,
+					);
+				} else {
+					setCartLine(null);
+				}
+			} else if (cartLineRef.current?.id) {
+				const response = await client.updateCartItem(cartLineRef.current.id, {
+					quantity: nextQuantity,
+				});
+				const line = findCommerceCartItem(response.data, product);
+				setCart(response.data);
+				emitCommerceCartUpdated(response.data);
+				setCartLine(
+					line ? { id: line.id, quantity: line.quantity } : null,
+				);
+			} else {
+				const response = await client.addCartItem({
+					catalogItemId: product.id,
+					quantity: nextQuantity,
+					replace: true,
+				});
+				const line = findCommerceCartItem(response.data, product);
+				setCart(response.data);
+				emitCommerceCartUpdated(response.data);
+				setCartLine(
+					line ? { id: line.id, quantity: line.quantity } : null,
+				);
+			}
+
+			setStatus("idle");
+		} catch {
+			setStatus("error");
+		}
+	}, [client, disabled, product, setCart]);
+
+	const syncQuantity = useMemo(
+		() =>
+			debounce((nextQuantity: number) => {
+				void syncQuantityNow(nextQuantity);
+			}, 350),
+		[syncQuantityNow],
+	);
+
+	useEffect(
+		() => () => {
+			syncQuantity.cancel();
+		},
+		[syncQuantity],
+	);
+
+	const queueQuantity = (nextQuantity: number) => {
+		if (disabled) {
+			return;
+		}
+
+		setCartLine((currentLine) =>
+			currentLine
+				? { ...currentLine, quantity: nextQuantity }
+				: { id: "", quantity: nextQuantity },
+		);
+		syncQuantity(nextQuantity);
+	};
 
 	return (
 		<section className={`${cx.section} py-6`}>
 			<div
-				className={`mx-auto flex max-w-6xl flex-col gap-4 p-4 sm:flex-row sm:items-end sm:justify-between ${cx.surface}`}
+				className={`mx-auto flex max-w-6xl flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between ${cx.surface}`}
 			>
-				<label className={`flex max-w-[160px] flex-col gap-2 text-sm font-medium ${cx.mutedText}`}>
-					{block.props.quantityLabel}
-					<input
-						type="number"
-						min={1}
-						value={quantity}
-						disabled={mode !== "preview"}
-						onChange={(event) =>
-							setQuantity(Math.max(1, Number(event.currentTarget.value) || 1))
-						}
-						className={cx.input}
-					/>
-				</label>
-				<div className="flex flex-wrap items-center gap-3">
-					{status === "success" ? (
-						<a
+				<div className={`text-sm font-medium ${cx.mutedText}`}>
+					{cartLine?.quantity
+						? block.props.successLabel
+						: block.props.quantityLabel}
+				</div>
+				<div className="flex flex-wrap items-center justify-end gap-3">
+					{cartLine?.quantity ? (
+						<Counter
+							value={cartLine.quantity}
+							min={0}
+							disabled={!interactive}
+							valueLabel={block.props.quantityLabel}
+							onValueChange={(nextQuantity) =>
+								setCartLine((currentLine) =>
+									currentLine
+										? { ...currentLine, quantity: nextQuantity }
+										: { id: "", quantity: nextQuantity },
+								)
+							}
+							onValueCommit={syncQuantity}
+							className="min-w-36 bg-[var(--wb-site-text)] text-[var(--wb-site-background)]"
+							buttonClassName="hover:bg-[color-mix(in_oklab,var(--wb-site-background)_14%,transparent)]"
+						/>
+					) : null}
+					{cartLine?.quantity ? (
+						<WebsiteBuilderLink
 							href={block.props.cartHref}
 							className={cx.secondaryButton}
 						>
 							{block.props.successLabel}
-						</a>
+						</WebsiteBuilderLink>
 					) : null}
-					<button
-						type="button"
-						disabled={disabled}
-						onClick={async () => {
-							if (!product) {
-								return;
-							}
-
-							setStatus("loading");
-
-							try {
-								await client.addCartItem({
-									catalogItemId: product.id,
-									catalogItemType: product.type,
-									quantity,
-								});
-								setStatus("success");
-							} catch {
-								setStatus("error");
-							}
-						}}
-						className={cx.primaryButton}
-					>
-						{status === "loading" ? "Adding..." : block.props.buttonLabel}
-					</button>
+					{!cartLine?.quantity ? (
+						<button
+							type="button"
+							disabled={disabled}
+							onClick={() => queueQuantity(1)}
+							className={cx.primaryButton}
+						>
+							{status === "loading" ? loadingLabel : block.props.buttonLabel}
+						</button>
+					) : null}
 					{status === "error" ? (
 						<span className={`text-sm ${cx.errorText}`}>
 							Unable to update cart

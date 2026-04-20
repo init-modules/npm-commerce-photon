@@ -12,6 +12,7 @@ export type CommerceDesignTemplateId =
 	| "commerce-services-template";
 
 type CommerceStorefrontKind = "products" | "services";
+type CommerceCatalogBindingPath = "items" | "products" | "services";
 type CommerceStarterSource =
 	| { type: "preset"; sourceId?: string }
 	| { type: "template"; sourceId?: string };
@@ -34,6 +35,7 @@ const resolveKindFromSource = (
 const createCatalogBlock = (
 	locale: CommerceWebsiteBuilderLocale,
 	kind: CommerceStorefrontKind,
+	path: CommerceCatalogBindingPath = kind,
 ): WebsiteBuilderBlock => ({
 	id: "commerce-product-grid",
 	module: "commerce-website-builder",
@@ -69,14 +71,18 @@ const createCatalogBlock = (
 			kind === "services"
 				? copy(locale, "View service", "Открыть услугу")
 				: copy(locale, "View product", "Открыть товар"),
-		columns: kind === "services" ? 2 : 3,
+		addToCartLabel:
+			kind === "services"
+				? copy(locale, "Book", "Записаться")
+				: copy(locale, "Add to cart", "В корзину"),
+		columns: kind === "services" ? 3 : 5,
 		showDescription: true,
 	},
 	bindings: {
 		items: {
 			source: "commerceCatalog",
-			path: "items",
-			mode: "read",
+			path,
+			mode: "write",
 		},
 	},
 });
@@ -103,7 +109,7 @@ const createProductDetailBlocks = (
 			product: {
 				source: "commerceProduct",
 				path: "product",
-				mode: "read",
+				mode: "write",
 			},
 		},
 	},
@@ -159,6 +165,23 @@ export const createCommerceStorefrontDocument = (
 		[createCatalogBlock(locale, kind)],
 	);
 
+export const createCommerceCatalogDocument = (
+	locale: CommerceWebsiteBuilderLocale = "en",
+	kind: CommerceStorefrontKind = "products",
+	path: CommerceCatalogBindingPath = kind,
+	route: "/products" | "/services" | "/catalog" = "/catalog",
+): WebsiteBuilderDocument =>
+	createDocument(
+		`commerce-${path}-catalog`,
+		path === "services"
+			? copy(locale, "Services", "Услуги")
+			: path === "products"
+				? copy(locale, "Products", "Товары")
+				: copy(locale, "Catalog", "Каталог"),
+		route,
+		[createCatalogBlock(locale, kind, path)],
+	);
+
 export const createCommerceProductTemplateDocument = (
 	locale: CommerceWebsiteBuilderLocale = "en",
 	kind: CommerceStorefrontKind = "products",
@@ -191,7 +214,7 @@ export const createCommerceCartDocument = (
 				),
 				checkoutLabel: copy(locale, "Checkout", "Оформить заказ"),
 				catalogLabel: copy(locale, "Continue shopping", "Продолжить покупки"),
-				catalogHref: "/catalog",
+				catalogHref: "/products",
 				checkoutHref: "/checkout",
 			},
 		},
@@ -253,7 +276,7 @@ export const createCommerceAccountOrdersDocument = (
 					totalLabel: copy(locale, "Total", "Итого"),
 					itemCountLabel: copy(locale, "items", "позиций"),
 					catalogLabel: copy(locale, "Open catalog", "Открыть каталог"),
-					catalogHref: "/catalog",
+					catalogHref: "/products",
 					limit: 20,
 				},
 			},
@@ -304,7 +327,8 @@ const createSiteRegionDocument = (
 							brandHref: "/",
 							logoImage: null,
 							utilityLinks: [
-								{ label: copy(locale, "Catalog", "Каталог"), href: "/catalog" },
+								{ label: copy(locale, "Products", "Товары"), href: "/products" },
+								{ label: copy(locale, "Services", "Услуги"), href: "/services" },
 								{
 									label: copy(locale, "Orders", "Заказы"),
 									href: "/account/orders",
@@ -327,14 +351,17 @@ const createSiteRegionDocument = (
 								kind === "services"
 									? copy(locale, "Book now", "Записаться")
 									: copy(locale, "Shop now", "Купить"),
-							primaryCtaHref: "/catalog",
+							primaryCtaHref: kind === "services" ? "/services" : "/products",
 							secondaryCtaLabel: copy(locale, "Orders", "Заказы"),
 							secondaryCtaHref: "/account/orders",
 							showLoginAction: true,
 							loginLabel: copy(locale, "Sign in", "Войти"),
 							sticky: true,
 							compactOnScroll: true,
-							categoryLinks: [],
+							categoryLinks: [
+								{ label: copy(locale, "Products", "Товары"), href: "/products" },
+								{ label: copy(locale, "Services", "Услуги"), href: "/services" },
+							],
 						},
 					},
 				],
@@ -380,8 +407,12 @@ const createSiteRegionDocument = (
 									title: copy(locale, "Storefront", "Витрина"),
 									links: [
 										{
-											label: copy(locale, "Catalog", "Каталог"),
-											href: "/catalog",
+											label: copy(locale, "Products", "Товары"),
+											href: "/products",
+										},
+										{
+											label: copy(locale, "Services", "Услуги"),
+											href: "/services",
 										},
 										{ label: copy(locale, "Cart", "Корзина"), href: "/cart" },
 										{
@@ -412,6 +443,19 @@ export const createCommerceStarterProfileTree = (
 ) => {
 	const kind = resolveKindFromSource(source);
 	const home = createCommerceStorefrontDocument(locale, kind);
+	const products = createCommerceCatalogDocument(
+		locale,
+		"products",
+		"products",
+		"/products",
+	);
+	const services = createCommerceCatalogDocument(
+		locale,
+		"services",
+		"services",
+		"/services",
+	);
+	const catalog = createCommerceCatalogDocument(locale, kind, kind, "/catalog");
 	const product = createCommerceProductTemplateDocument(locale, kind);
 	const cart = createCommerceCartDocument(locale);
 	const checkout = createCommerceCheckoutDocument(locale);
@@ -420,11 +464,9 @@ export const createCommerceStarterProfileTree = (
 	return {
 		pages: {
 			home: createPageEntry(home),
-			catalog: createPageEntry({
-				...home,
-				id: "commerce-catalog",
-				route: "/catalog",
-			}),
+			catalog: createPageEntry(catalog),
+			products: createPageEntry(products),
+			services: createPageEntry(services),
 			product: createPageEntry(product),
 			cart: createPageEntry(cart),
 			checkout: createPageEntry(checkout),

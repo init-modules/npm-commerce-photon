@@ -12,12 +12,19 @@
 	},
 	"peerDependencies": {
 		"@init-modules/commerce": "^0.1.0",
+		"@init-modules/ui": "^0.1.0",
 		"@init-modules/website-builder": "^0.1.0",
 		"react": "^19.0.0",
 		"react-dom": "^19.0.0"
 	},
+	"dependencies": {
+		"@types/lodash-es": "^4.17.12",
+		"lodash-es": "^4.17.21",
+		"zustand": "^5.0.12"
+	},
 	"devDependencies": {
 		"@init-modules/commerce": "file:../commerce",
+		"@init-modules/ui": "file:../../ui-foundation/ui",
 		"@init-modules/website-builder": "file:../../website-builder-foundation/website-builder",
 		"@types/react": "^19.2.14",
 		"@types/react-dom": "^19.2.3",

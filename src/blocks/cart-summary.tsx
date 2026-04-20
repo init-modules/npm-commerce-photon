@@ -1,10 +1,16 @@
 "use client";
 
+import { createCommerceClient, getCommerceRequest } from "@init-modules/commerce";
+import { useCommerceCartStore } from "@init-modules/commerce/client";
 import {
-	type CommerceCart,
-	createCommerceClient,
-	createFetchCommerceRequest,
-} from "@init-modules/commerce";
+	Breadcrumb,
+	BreadcrumbItem,
+	BreadcrumbList,
+	BreadcrumbPage,
+	BreadcrumbSeparator,
+	Counter,
+	Steps,
+} from "@init-modules/ui";
 import {
 	createWebsiteBuilderLocalizedDefault,
 	defineWebsiteBuilderBlockDefinition,
@@ -12,11 +18,19 @@ import {
 	EditableTextarea,
 	useWebsiteBuilder,
 	useWebsiteBuilderI18n,
+	WebsiteBuilderLink,
 	type WebsiteBuilderBlockComponentProps,
 	type WebsiteBuilderBlockDefinition,
 } from "@init-modules/website-builder";
-import { useEffect, useMemo, useState } from "react";
-import { commerceBlockClassNames as cx, formatCommerceMoney } from "./shared";
+import debounce from "lodash-es/debounce";
+import { X } from "lucide-react";
+import { useCallback, useEffect, useMemo } from "react";
+import { shallow } from "zustand/shallow";
+import {
+	commerceBlockClassNames as cx,
+	emitCommerceCartUpdated,
+	formatCommerceMoney,
+} from "./shared";
 
 type CommerceCartSummaryProps = {
 	eyebrow: string;
@@ -29,17 +43,41 @@ type CommerceCartSummaryProps = {
 	checkoutHref: string;
 };
 
+const createCheckoutSteps = (locale: string, current: number) => [
+	{
+		title: locale === "ru" ? "Корзина" : "Cart",
+		description: locale === "ru" ? "Проверьте позиции" : "Review items",
+	},
+	{
+		title: locale === "ru" ? "Оформление" : "Checkout",
+		description: locale === "ru" ? "Контакты и заказ" : "Contacts and order",
+	},
+	{
+		title: locale === "ru" ? "Готово" : "Done",
+		description: locale === "ru" ? "Заказ создан" : "Order placed",
+		status: current > 1 ? "finish" : undefined,
+	},
+] as const;
+
 const CommerceCartSummary = ({
 	block,
 }: WebsiteBuilderBlockComponentProps<CommerceCartSummaryProps>) => {
 	const { mode } = useWebsiteBuilder();
 	const { contentLocale } = useWebsiteBuilderI18n();
-	const [cart, setCart] = useState<CommerceCart | null>(null);
-	const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">(
-		"idle",
-	);
+	const { applyItemQuantity, cart, setCart, setStatus, status } =
+		useCommerceCartStore(
+			(state) => ({
+				applyItemQuantity: state.applyItemQuantity,
+				cart: state.cart,
+				setCart: state.setCart,
+				setStatus: state.setStatus,
+				status: state.status,
+			}),
+			shallow,
+		);
+	const isCartLoaded = cart !== null;
 	const client = useMemo(
-		() => createCommerceClient(createFetchCommerceRequest()),
+		() => createCommerceClient(getCommerceRequest()),
 		[],
 	);
 
@@ -48,8 +86,14 @@ const CommerceCartSummary = ({
 			return;
 		}
 
+		if (isCartLoaded) {
+			return;
+		}
+
 		let alive = true;
-		setStatus("loading");
+		if (status !== "ready") {
+			setStatus("loading");
+		}
 
 		client
 			.getCurrentCart()
@@ -59,6 +103,7 @@ const CommerceCartSummary = ({
 				}
 
 				setCart(response.data);
+				emitCommerceCartUpdated(response.data);
 				setStatus("ready");
 			})
 			.catch(() => {
@@ -72,7 +117,56 @@ const CommerceCartSummary = ({
 		return () => {
 			alive = false;
 		};
-	}, [client, mode]);
+	}, [client, isCartLoaded, mode, setCart, setStatus, status]);
+
+	const syncItemQuantityNow = useCallback(
+		async (itemId: string, nextQuantity: number) => {
+			if (mode !== "preview") {
+				return;
+			}
+
+			setStatus("loading");
+
+			try {
+				const response =
+					nextQuantity <= 0
+						? await client.removeCartItem(itemId)
+						: await client.updateCartItem(itemId, {
+								quantity: nextQuantity,
+							});
+
+				setCart(response.data);
+				emitCommerceCartUpdated(response.data);
+				setStatus("ready");
+			} catch {
+				setStatus("error");
+			}
+		},
+		[client, mode, setCart, setStatus],
+	);
+
+	const syncItemQuantity = useMemo(
+		() =>
+			debounce((itemId: string, nextQuantity: number) => {
+				void syncItemQuantityNow(itemId, nextQuantity);
+			}, 350),
+		[syncItemQuantityNow],
+	);
+
+	useEffect(
+		() => () => {
+			syncItemQuantity.cancel();
+		},
+		[syncItemQuantity],
+	);
+
+	const setItemQuantity = (itemId: string, nextQuantity: number) => {
+		const nextCart = applyItemQuantity(itemId, nextQuantity);
+		if (nextCart) {
+			emitCommerceCartUpdated(nextCart);
+		}
+		syncItemQuantity(itemId, nextQuantity);
+	};
 
 	const items = cart?.items ?? [];
 	const hasItems = items.length > 0;
@@ -80,6 +174,24 @@ const CommerceCartSummary = ({
 	return (
 		<section className={`${cx.section} py-12`}>
 			<div className="mx-auto max-w-5xl">
+				<Breadcrumb className="mb-8">
+					<BreadcrumbList>
+						<BreadcrumbItem>
+							<WebsiteBuilderLink href={block.props.catalogHref}>
+								{block.props.catalogLabel}
+							</WebsiteBuilderLink>
+						</BreadcrumbItem>
+						<BreadcrumbSeparator />
+						<BreadcrumbItem>
+							<BreadcrumbPage>{block.props.title}</BreadcrumbPage>
+						</BreadcrumbItem>
+					</BreadcrumbList>
+				</Breadcrumb>
+				<Steps
+					current={0}
+					className="mb-8"
+					items={createCheckoutSteps(contentLocale, 0)}
+				/>
 				<EditableText
 					blockId={block.id}
 					path="eyebrow"
@@ -97,19 +209,49 @@ const CommerceCartSummary = ({
 						{items.map((item) => (
 							<div
 								key={item.id}
-								className="grid gap-3 border-b border-[color:var(--wb-site-border)] p-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto]"
+								className="grid gap-4 border-b border-[color:var(--wb-site-border)] p-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto]"
 							>
 								<div className="min-w-0">
 									<div className={`font-semibold ${cx.strongText}`}>
 										{item.name}
 									</div>
 									<div className={`mt-1 text-sm ${cx.mutedText}`}>
-										{item.quantity} x{" "}
 										{formatCommerceMoney(
 											item.unit_price,
 											cart?.currency ?? "KZT",
 											contentLocale,
 										)}
+									</div>
+									<div className="mt-4 flex items-center gap-3">
+										<Counter
+											value={item.quantity}
+											min={0}
+											valueLabel={item.name ?? "Quantity"}
+											onValueChange={(nextQuantity) => {
+												const nextCart = applyItemQuantity(
+													item.id,
+													nextQuantity,
+												);
+
+												if (nextCart) {
+													emitCommerceCartUpdated(nextCart);
+												}
+											}}
+											onValueCommit={(nextQuantity) =>
+												setItemQuantity(item.id, nextQuantity)
+											}
+											className="h-10 min-w-32 bg-[var(--wb-site-text)] text-[var(--wb-site-background)]"
+											buttonClassName="h-8 w-8 hover:bg-[color-mix(in_oklab,var(--wb-site-background)_14%,transparent)]"
+											valueClassName="h-8"
+										/>
+										<button
+											type="button"
+											aria-label="Remove item"
+											onClick={() => setItemQuantity(item.id, 0)}
+											className={`flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--wb-site-border)] transition hover:border-[var(--wb-site-accent)] hover:text-[var(--wb-site-accent)] ${cx.mutedText}`}
+										>
+											<X className="h-4 w-4" />
+										</button>
 									</div>
 								</div>
 								<div className={`font-semibold ${cx.strongText}`}>
@@ -132,12 +274,12 @@ const CommerceCartSummary = ({
 									)}
 								</div>
 							</div>
-							<a
+							<WebsiteBuilderLink
 								href={block.props.checkoutHref}
 								className={cx.primaryButton}
 							>
 								{block.props.checkoutLabel}
-							</a>
+							</WebsiteBuilderLink>
 						</div>
 					</div>
 				) : (
@@ -152,12 +294,12 @@ const CommerceCartSummary = ({
 							path="emptyBody"
 							className={`mt-3 text-sm leading-7 ${cx.mutedText}`}
 						/>
-						<a
+						<WebsiteBuilderLink
 							href={block.props.catalogHref}
 							className={`mt-6 ${cx.secondaryButton}`}
 						>
 							{block.props.catalogLabel}
-						</a>
+						</WebsiteBuilderLink>
 					</div>
 				)}
 

@@ -3,7 +3,7 @@
 import {
 	type CommerceOrder,
 	createCommerceClient,
-	createFetchCommerceRequest,
+	getCommerceRequest,
 } from "@init-modules/commerce";
 import {
 	createWebsiteBuilderLocalizedDefault,
@@ -12,6 +12,7 @@ import {
 	EditableTextarea,
 	useWebsiteBuilder,
 	useWebsiteBuilderI18n,
+	WebsiteBuilderLink,
 	type WebsiteBuilderBlockComponentProps,
 	type WebsiteBuilderBlockDefinition,
 } from "@init-modules/website-builder";
@@ -26,6 +27,7 @@ type CommerceOrderListProps = {
 	orderLabel: string;
 	totalLabel: string;
 	itemCountLabel: string;
+	authLabel: string;
 	catalogLabel: string;
 	catalogHref: string;
 	limit: number;
@@ -34,19 +36,25 @@ type CommerceOrderListProps = {
 const CommerceOrderList = ({
 	block,
 }: WebsiteBuilderBlockComponentProps<CommerceOrderListProps>) => {
-	const { mode } = useWebsiteBuilder();
+	const { mode, requestAuth, resources } = useWebsiteBuilder();
 	const { contentLocale } = useWebsiteBuilderI18n();
+	const authResource = resources.auth as
+		| { user?: null | Record<string, unknown> }
+		| undefined;
+	const isAuthenticated = Boolean(authResource?.user);
 	const [orders, setOrders] = useState<CommerceOrder[]>([]);
 	const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">(
 		"idle",
 	);
 	const client = useMemo(
-		() => createCommerceClient(createFetchCommerceRequest()),
+		() => createCommerceClient(getCommerceRequest()),
 		[],
 	);
 
 	useEffect(() => {
-		if (mode !== "preview") {
+		if (mode !== "preview" || !isAuthenticated) {
+			setOrders([]);
+			setStatus("idle");
 			return;
 		}
 
@@ -74,7 +82,7 @@ const CommerceOrderList = ({
 		return () => {
 			alive = false;
 		};
-	}, [block.props.limit, client, mode]);
+	}, [block.props.limit, client, isAuthenticated, mode]);
 
 	return (
 		<section className={`${cx.section} py-12`}>
@@ -91,7 +99,27 @@ const CommerceOrderList = ({
 					className="mt-3 block text-3xl font-semibold leading-tight sm:text-5xl"
 				/>
 
-				{orders.length > 0 ? (
+				{mode === "preview" && !isAuthenticated ? (
+					<div className={cx.empty}>
+						<EditableText
+							blockId={block.id}
+							path="emptyTitle"
+							className={`text-lg font-semibold ${cx.strongText}`}
+						/>
+						<EditableTextarea
+							blockId={block.id}
+							path="emptyBody"
+							className={`mt-3 text-sm leading-7 ${cx.mutedText}`}
+						/>
+						<button
+							type="button"
+							onClick={requestAuth}
+							className={`mt-6 ${cx.secondaryButton}`}
+						>
+							{block.props.authLabel}
+						</button>
+					</div>
+				) : orders.length > 0 ? (
 					<div className={`mt-8 overflow-hidden ${cx.surface}`}>
 						{orders.map((order) => (
 							<div
@@ -155,12 +183,12 @@ const CommerceOrderList = ({
 							path="emptyBody"
 							className={`mt-3 text-sm leading-7 ${cx.mutedText}`}
 						/>
-						<a
+						<WebsiteBuilderLink
 							href={block.props.catalogHref}
 							className={`mt-6 ${cx.secondaryButton}`}
 						>
 							{block.props.catalogLabel}
-						</a>
+						</WebsiteBuilderLink>
 					</div>
 				)}
 
@@ -211,6 +239,10 @@ export const commerceOrderListDefinition: WebsiteBuilderBlockDefinition<Commerce
 			itemCountLabel: createWebsiteBuilderLocalizedDefault({
 				en: "items",
 				ru: "позиций",
+			}),
+			authLabel: createWebsiteBuilderLocalizedDefault({
+				en: "Sign in",
+				ru: "Войти",
 			}),
 			catalogLabel: createWebsiteBuilderLocalizedDefault({
 				en: "Open catalog",
@@ -265,6 +297,13 @@ export const commerceOrderListDefinition: WebsiteBuilderBlockDefinition<Commerce
 			{
 				path: "itemCountLabel",
 				label: "Item count label",
+				kind: "text",
+				group: "content",
+				localization: "localized",
+			},
+			{
+				path: "authLabel",
+				label: "Auth label",
 				kind: "text",
 				group: "content",
 				localization: "localized",

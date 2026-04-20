@@ -38,7 +38,7 @@ export const commerceWebsiteBuilderSiteFrameExtension: WebsiteBuilderSiteFrameEx
 					links: [
 						{ id: "commerce:footer-catalog", label: "Catalog", href: "/catalog" },
 						{ id: "commerce:footer-cart", label: "Cart", href: "/cart" },
-						{ id: "commerce:footer-orders", label: "Orders", href: "/orders" },
+						{ id: "commerce:footer-orders", label: "Orders", href: "/account/orders" },
 					],
 				},
 			],

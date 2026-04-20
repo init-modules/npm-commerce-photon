@@ -177,9 +177,7 @@ const CommerceAddToCart = ({
 				className={`mx-auto flex max-w-6xl flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between ${cx.surface}`}
 			>
 				<div className={`text-sm font-medium ${cx.mutedText}`}>
-					{cartLine?.quantity
-						? block.props.successLabel
-						: block.props.quantityLabel}
+					{cartLine?.quantity ? block.props.successLabel : null}
 				</div>
 				<div className="flex flex-wrap items-center justify-end gap-3">
 					{cartLine?.quantity ? (
@@ -196,8 +194,8 @@ const CommerceAddToCart = ({
 								)
 							}
 							onValueCommit={syncQuantity}
-							className="min-w-36 bg-[var(--wb-site-text)] text-[var(--wb-site-background)]"
-							buttonClassName="hover:bg-[color-mix(in_oklab,var(--wb-site-background)_14%,transparent)]"
+							className="min-w-36 border-[var(--wb-site-border)] bg-[color-mix(in_oklab,var(--wb-site-background)_86%,black)] text-[var(--wb-site-text)]"
+							buttonClassName="hover:bg-[color-mix(in_oklab,var(--wb-site-accent)_18%,transparent)]"
 						/>
 					) : null}
 					{cartLine?.quantity ? (

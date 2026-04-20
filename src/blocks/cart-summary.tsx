@@ -240,8 +240,8 @@ const CommerceCartSummary = ({
 											onValueCommit={(nextQuantity) =>
 												setItemQuantity(item.id, nextQuantity)
 											}
-											className="h-10 min-w-32 bg-[var(--wb-site-text)] text-[var(--wb-site-background)]"
-											buttonClassName="h-8 w-8 hover:bg-[color-mix(in_oklab,var(--wb-site-background)_14%,transparent)]"
+											className="h-10 min-w-32 border-[var(--wb-site-border)] bg-[color-mix(in_oklab,var(--wb-site-background)_86%,black)] text-[var(--wb-site-text)]"
+											buttonClassName="h-8 w-8 hover:bg-[color-mix(in_oklab,var(--wb-site-accent)_18%,transparent)]"
 											valueClassName="h-8"
 										/>
 										<button

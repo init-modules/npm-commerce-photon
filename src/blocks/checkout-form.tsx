@@ -47,6 +47,7 @@ import {
 	toCommerceCheckoutStepKey,
 	type CommerceCheckoutStepKey,
 } from "./checkout-step";
+import { CommerceCheckoutSummary } from "./checkout-summary";
 
 type CommerceCheckoutFormProps = {
 	eyebrow: string;
@@ -509,9 +510,9 @@ const CommerceCheckoutForm = ({
 		block.props.accountOrdersHref.trim()
 			? block.props.accountOrdersHref
 			: "/account/orders";
-	const orderItems = order?.items ?? [];
-	const orderCurrency = order?.currency ?? cart?.currency ?? "KZT";
-	const orderTotal = order?.total_amount ?? cart?.total_amount ?? 0;
+	const summaryItems = cart?.items ?? [];
+	const summaryCurrency = cart?.currency ?? order?.currency ?? "KZT";
+	const summaryTotal = cart?.total_amount ?? order?.total_amount ?? 0;
 	const checkoutFields =
 		Array.isArray(block.props.fields) && block.props.fields.length > 0
 			? block.props.fields
@@ -920,72 +921,20 @@ const CommerceCheckoutForm = ({
 					)}
 					</div>
 
-					{isCartStep || isDoneStep ? null : <aside className={`p-5 ${cx.surface}`}>
-					<EditableText
-						blockId={block.id}
-						path="summaryTitle"
-						placeholder={getFallbackText("summaryTitle")}
-						className={`text-sm font-semibold ${cx.strongText}`}
-					/>
-					{cart && cart.items.length > 0 ? (
-						<>
-							<div className="mt-4 grid gap-3">
-								{orderItems.map((item) => (
-									<div
-										key={item.id}
-										className="flex justify-between gap-4 text-sm"
-									>
-										<span className={`min-w-0 ${cx.mutedText}`}>
-											{item.quantity} x {item.name}
-										</span>
-										<span className={`font-semibold ${cx.strongText}`}>
-											{formatCommerceMoney(
-												item.line_total,
-												orderCurrency,
-												contentLocale,
-											)}
-										</span>
-									</div>
-								))}
-							</div>
-							<div className="mt-5 border-t border-[color:var(--wb-site-border)] pt-4">
-								<div className="flex justify-between gap-4 text-base font-semibold">
-									<EditableText
-										blockId={block.id}
-										path="summaryTotalLabel"
-										placeholder={getFallbackText("summaryTotalLabel")}
-										className="font-semibold"
-									/>
-									<span>
-										{formatCommerceMoney(
-											orderTotal,
-											orderCurrency,
-											contentLocale,
-										)}
-									</span>
-								</div>
-							</div>
-						</>
-					) : (
-						<div className={`mt-4 text-sm leading-7 ${cx.mutedText}`}>
-							<EditableText
-								blockId={block.id}
-								path="summaryEmptyBody"
-								placeholder={getFallbackText("summaryEmptyBody")}
-								className={cx.mutedText}
-							/>{" "}
-							<WebsiteBuilderLink href={cartHref}>
-								<EditableText
-									blockId={block.id}
-									path="summaryReturnLabel"
-									placeholder={getFallbackText("summaryReturnLabel")}
-									className="font-medium"
-								/>
-							</WebsiteBuilderLink>
-							.
-						</div>
+					{isCartStep || isDoneStep ? null : (
+						<CommerceCheckoutSummary
+							blockId={block.id}
+							cartHref={cartHref}
+							contentLocale={contentLocale}
+							currency={summaryCurrency}
+							emptyBody={getFallbackText("summaryEmptyBody")}
+							items={summaryItems}
+							returnLabel={getFallbackText("summaryReturnLabel")}
+							title={getFallbackText("summaryTitle")}
+							total={summaryTotal}
+							totalLabel={getFallbackText("summaryTotalLabel")}
+						/>
 					)}
-					</aside>}
 				</div>
 			</div>
 		</section>

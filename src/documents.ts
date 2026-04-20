@@ -244,8 +244,23 @@ export const createCommerceCheckoutDocument = (
 					emailLabel: "Email",
 					phoneLabel: copy(locale, "Phone", "Телефон"),
 					submitLabel: copy(locale, "Place order", "Разместить заказ"),
-					successTitle: copy(locale, "Order placed", "Заказ создан"),
+					successTitle: copy(locale, "Order confirmed", "Заказ оформлен"),
+					successBody: copy(
+						locale,
+						"We saved your order and will keep its status updated in your account.",
+						"Мы сохранили заказ и будем обновлять его статус в личном кабинете.",
+					),
+					orderDetailsTitle: copy(locale, "Order details", "Детали заказа"),
+					orderNumberLabel: copy(locale, "Order number", "Номер заказа"),
+					orderStatusLabel: copy(locale, "Status", "Статус"),
+					orderTotalLabel: copy(locale, "Total", "Итого"),
+					trackOrderLabel: copy(
+						locale,
+						"Track order status in your account",
+						"Отслеживать статус заказа в личном кабинете",
+					),
 					cartHref: "/cart",
+					accountOrdersHref: "/account/orders",
 				},
 			},
 		],
@@ -327,13 +342,10 @@ const createSiteRegionDocument = (
 							brandHref: "/",
 							logoImage: null,
 							utilityLinks: [
-								{ label: copy(locale, "Products", "Товары"), href: "/products" },
-								{ label: copy(locale, "Services", "Услуги"), href: "/services" },
 								{
 									label: copy(locale, "Orders", "Заказы"),
 									href: "/account/orders",
 								},
-								{ label: copy(locale, "Cart", "Корзина"), href: "/cart" },
 							],
 							catalogLabel: copy(locale, "Catalog", "Каталог"),
 							searchPlaceholder: copy(

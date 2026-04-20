@@ -5,6 +5,7 @@ import {
 	getCommerceRequest,
 	type CommerceCatalogItemView,
 } from "@init-modules/commerce";
+import { useCommerceCartStore } from "@init-modules/commerce/client";
 import { Counter } from "@init-modules/ui";
 import {
 	createWebsiteBuilderLocalizedDefault,
@@ -99,13 +100,16 @@ const CommerceProductGrid = ({
 		() => createCommerceClient(getCommerceRequest()),
 		[],
 	);
+	const cart = useCommerceCartStore((state) => state.cart);
+	const setCart = useCommerceCartStore((state) => state.setCart);
 	const [cartLines, setCartLines] = useState<
 		Record<string, { id: string; quantity: number }>
-	>({});
+	>(() => (cart ? indexCommerceCartItems(cart) : {}));
 	const [itemStatuses, setItemStatuses] = useState<
 		Record<string, "idle" | "loading" | "error">
 	>({});
 	const cartLinesRef = useRef(cartLines);
+	const desiredItemQuantitiesRef = useRef(new Map<string, number>());
 	const interactive = mode === "preview";
 
 	useEffect(() => {
@@ -113,8 +117,19 @@ const CommerceProductGrid = ({
 	}, [cartLines]);
 
 	useEffect(() => {
+		if (desiredItemQuantitiesRef.current.size > 0) {
+			return;
+		}
+
+		setCartLines(cart ? indexCommerceCartItems(cart) : {});
+	}, [cart]);
+
+	useEffect(() => {
 		if (!interactive || items.length === 0) {
-			setCartLines({});
+			return;
+		}
+
+		if (cart) {
 			return;
 		}
 
@@ -124,6 +139,11 @@ const CommerceProductGrid = ({
 			.getCurrentCart()
 			.then((response) => {
 				if (active) {
+					if (desiredItemQuantitiesRef.current.size > 0) {
+						return;
+					}
+
+					setCart(response.data);
 					setCartLines(indexCommerceCartItems(response.data));
 				}
 			})
@@ -132,7 +152,7 @@ const CommerceProductGrid = ({
 		return () => {
 			active = false;
 		};
-	}, [client, interactive, itemIds]);
+	}, [cart, client, interactive, itemIds, setCart]);
 
 	const setItemStatus = (
 		itemId: string,
@@ -170,6 +190,12 @@ const CommerceProductGrid = ({
 
 				const line = findCommerceCartItem(response.data, item);
 
+				if (desiredItemQuantitiesRef.current.get(item.id) !== nextQuantity) {
+					return;
+				}
+
+				desiredItemQuantitiesRef.current.delete(item.id);
+				setCart(response.data);
 				emitCommerceCartUpdated(response.data);
 				setCartLines((currentLines) => {
 					const nextLines = { ...currentLines };
@@ -187,10 +213,14 @@ const CommerceProductGrid = ({
 				});
 				setItemStatus(item.id, "idle");
 			} catch {
+				if (desiredItemQuantitiesRef.current.get(item.id) !== nextQuantity) {
+					return;
+				}
+
 				setItemStatus(item.id, "error");
 			}
 		},
-		[client, interactive],
+		[client, interactive, setCart],
 	);
 
 	const syncItemQuantity = useMemo(
@@ -226,6 +256,7 @@ const CommerceProductGrid = ({
 				quantity: nextQuantity,
 			},
 		}));
+		desiredItemQuantitiesRef.current.set(item.id, nextQuantity);
 		syncItemQuantity(item, nextQuantity);
 	};
 
@@ -353,9 +384,13 @@ const CommerceProductGrid = ({
 															},
 														}))
 													}
-													onValueCommit={(nextQuantity) =>
-														syncItemQuantity(item, nextQuantity)
-													}
+													onValueCommit={(nextQuantity) => {
+														desiredItemQuantitiesRef.current.set(
+															item.id,
+															nextQuantity,
+														);
+														syncItemQuantity(item, nextQuantity);
+													}}
 													className="h-10 min-w-32 bg-[var(--wb-site-text)] text-[var(--wb-site-background)]"
 													buttonClassName="h-8 w-8 hover:bg-[color-mix(in_oklab,var(--wb-site-background)_14%,transparent)]"
 													valueClassName="h-8"

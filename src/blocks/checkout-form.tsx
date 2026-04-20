@@ -34,13 +34,19 @@ import {
 } from "@init-modules/website-builder";
 import debounce from "lodash-es/debounce";
 import { X } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 import {
 	commerceBlockClassNames as cx,
 	emitCommerceCartUpdated,
 	formatCommerceMoney,
 } from "./shared";
+import {
+	commerceCheckoutStepKeys,
+	resolveCommerceCheckoutStep,
+	toCommerceCheckoutStepKey,
+	type CommerceCheckoutStepKey,
+} from "./checkout-step";
 
 type CommerceCheckoutFormProps = {
 	eyebrow: string;
@@ -71,12 +77,15 @@ type CommerceCheckoutFormProps = {
 	savingLabel: string;
 	errorLabel: string;
 	successTitle: string;
+	successBody: string;
+	orderDetailsTitle: string;
+	orderNumberLabel: string;
+	orderStatusLabel: string;
+	orderTotalLabel: string;
+	trackOrderLabel: string;
 	cartHref: string;
+	accountOrdersHref: string;
 };
-
-type CheckoutStepKey = "cart" | "checkout" | "done";
-
-const checkoutStepKeys: CheckoutStepKey[] = ["cart", "checkout", "done"];
 
 const checkoutDefaultFields: WebsiteBuilderFormFieldDefinition[] = [
 		{
@@ -166,15 +175,28 @@ const checkoutFormFieldsField = createWebsiteBuilderFormFieldsField("fields", {
 	},
 });
 
-const readCheckoutStepIndex = () => {
+const readCheckoutStepFromLocation = (): CommerceCheckoutStepKey | null => {
 	if (typeof window === "undefined") {
-		return 1;
+		return null;
 	}
 
-	const step = new URLSearchParams(window.location.search).get("checkoutStep");
-	const index = checkoutStepKeys.indexOf(step as CheckoutStepKey);
+	return toCommerceCheckoutStepKey(
+		new URLSearchParams(window.location.search).get("checkoutStep"),
+	);
+};
 
-	return index >= 0 ? index : 1;
+const readCheckoutStepFromResources = (
+	resources: Record<string, unknown>,
+): CommerceCheckoutStepKey | null => {
+	const commerceCheckout = resources.commerceCheckout;
+
+	if (typeof commerceCheckout !== "object" || commerceCheckout === null) {
+		return null;
+	}
+
+	return toCommerceCheckoutStepKey(
+		(commerceCheckout as { requestedStep?: unknown }).requestedStep,
+	);
 };
 
 const CommerceCheckoutForm = ({
@@ -185,7 +207,9 @@ const CommerceCheckoutForm = ({
 	const authResource = resources.auth as
 		| { user?: null | Record<string, unknown> }
 		| undefined;
-	const isAuthenticated = Boolean(authResource?.user);
+	const resourceRequestedStep = readCheckoutStepFromResources(resources);
+	const [requestedStep, setRequestedStep] =
+		useState<CommerceCheckoutStepKey | null>(() => resourceRequestedStep);
 	const { applyItemQuantity, cart, setCart } = useCommerceCartStore(
 		(state) => ({
 			applyItemQuantity: state.applyItemQuantity,
@@ -194,27 +218,54 @@ const CommerceCheckoutForm = ({
 		}),
 		shallow,
 	);
+	const isAuthenticated =
+		Boolean(authResource?.user) || Boolean(cart?.actor?.authenticated);
 	const [order, setOrder] = useState<CommerceOrder | null>(null);
-	const [stepIndex, setStepIndex] = useState(readCheckoutStepIndex);
 	const [status, setStatus] = useState<"idle" | "loading" | "saving" | "error">(
 		cart ? "idle" : "loading",
 	);
+	const desiredItemQuantitiesRef = useRef(new Map<string, number>());
 	const client = useMemo(
 		() => createCommerceClient(getCommerceRequest()),
 		[],
 	);
-	const pushCheckoutStep = useCallback((nextIndex: number) => {
-		const boundedIndex = Math.max(0, Math.min(checkoutStepKeys.length - 1, nextIndex));
-		setStepIndex(boundedIndex);
+	const writeCheckoutStep = useCallback(
+		(nextIndex: number, method: "push" | "replace") => {
+			const boundedIndex = Math.max(
+				0,
+				Math.min(commerceCheckoutStepKeys.length - 1, nextIndex),
+			);
+			const step = commerceCheckoutStepKeys[boundedIndex] ?? "checkout";
+			setRequestedStep(step);
 
-		if (typeof window === "undefined") {
-			return;
-		}
+			if (typeof window === "undefined") {
+				return;
+			}
 
-		const url = new URL(window.location.href);
-		url.searchParams.set("checkoutStep", checkoutStepKeys[boundedIndex]);
-		window.history.pushState({ checkoutStep: checkoutStepKeys[boundedIndex] }, "", `${url.pathname}?${url.searchParams.toString()}`);
-	}, []);
+			const url = new URL(window.location.href);
+			url.searchParams.set("checkoutStep", step);
+			const nextHref = `${url.pathname}?${url.searchParams.toString()}${url.hash}`;
+
+			if (
+				`${window.location.pathname}${window.location.search}${window.location.hash}` ===
+				nextHref
+			) {
+				return;
+			}
+
+			if (method === "replace") {
+				window.history.replaceState({ checkoutStep: step }, "", nextHref);
+				return;
+			}
+
+			window.history.pushState({ checkoutStep: step }, "", nextHref);
+		},
+		[],
+	);
+	const pushCheckoutStep = useCallback(
+		(nextIndex: number) => writeCheckoutStep(nextIndex, "push"),
+		[writeCheckoutStep],
+	);
 	const syncItemQuantityNow = useCallback(
 		async (itemId: string, nextQuantity: number) => {
 			if (mode !== "preview") {
@@ -231,10 +282,19 @@ const CommerceCheckoutForm = ({
 								quantity: nextQuantity,
 							});
 
+				if (desiredItemQuantitiesRef.current.get(itemId) !== nextQuantity) {
+					return;
+				}
+
+				desiredItemQuantitiesRef.current.delete(itemId);
 				setCart(response.data);
 				emitCommerceCartUpdated(response.data);
 				setStatus("idle");
 			} catch {
+				if (desiredItemQuantitiesRef.current.get(itemId) !== nextQuantity) {
+					return;
+				}
+
 				setStatus("error");
 			}
 		},
@@ -266,7 +326,7 @@ const CommerceCheckoutForm = ({
 			return;
 		}
 
-		const syncStep = () => setStepIndex(readCheckoutStepIndex());
+		const syncStep = () => setRequestedStep(readCheckoutStepFromLocation());
 		window.addEventListener("popstate", syncStep);
 
 		return () => window.removeEventListener("popstate", syncStep);
@@ -278,6 +338,10 @@ const CommerceCheckoutForm = ({
 		}
 
 		if (cart) {
+			return;
+		}
+
+		if (order) {
 			return;
 		}
 
@@ -306,7 +370,7 @@ const CommerceCheckoutForm = ({
 		return () => {
 			alive = false;
 		};
-	}, [cart, client, mode, setCart]);
+	}, [cart, client, mode, order, setCart]);
 
 	const ru = contentLocale === "ru";
 	const fallbackText = {
@@ -324,21 +388,52 @@ const CommerceCheckoutForm = ({
 		checkoutStepDescription: ru ? "Контакты и заказ" : "Contacts and order",
 		checkoutStepTitle: ru ? "Оформление" : "Checkout",
 		doneStepDescription: ru ? "Заказ создан" : "Order placed",
-		doneStepTitle: ru ? "Готово" : "Done",
+		doneStepTitle: ru ? "Заказ оформлен" : "Order confirmed",
 		errorLabel: ru ? "Не удалось разместить заказ" : "Unable to place order",
+		orderDetailsTitle: ru ? "Детали заказа" : "Order details",
+		orderNumberLabel: ru ? "Номер заказа" : "Order number",
+		orderStatusLabel: ru ? "Статус" : "Status",
+		orderTotalLabel: ru ? "Итого" : "Total",
 		savingLabel: ru ? "Размещаем..." : "Placing...",
 		submitLabel: ru ? "Разместить заказ" : "Place order",
-		successTitle: ru ? "Заказ создан" : "Order placed",
+		successBody: ru
+			? "Мы сохранили заказ и будем обновлять его статус в личном кабинете."
+			: "We saved your order and will keep its status updated in your account.",
+		successTitle: ru ? "Заказ оформлен" : "Order confirmed",
 		summaryEmptyBody: ru ? "Корзина пуста." : "Cart is empty.",
 		summaryReturnLabel: ru ? "Вернуться в корзину" : "Return to cart",
 		summaryTitle: ru ? "Корзина" : "Cart",
 		summaryTotalLabel: ru ? "Итого" : "Total",
+		trackOrderLabel: ru
+			? "Отслеживать статус заказа в личном кабинете"
+			: "Track order status in your account",
 	};
 	const getFallbackText = (key: keyof typeof fallbackText) =>
 		String(block.props[key] ?? fallbackText[key]);
+	const items = cart?.items ?? [];
+	const hasItems = items.length > 0;
+	const activeStep = resolveCommerceCheckoutStep({
+		hasItems,
+		hasOrder: Boolean(order),
+		requestedStep,
+	});
+	const activeStepIndex = commerceCheckoutStepKeys.indexOf(activeStep);
+
+	useEffect(() => {
+		if (typeof window === "undefined") {
+			return;
+		}
+
+		const browserRequestedStep = readCheckoutStepFromLocation();
+
+		if (browserRequestedStep && browserRequestedStep !== activeStep) {
+			writeCheckoutStep(activeStepIndex, "replace");
+		}
+	}, [activeStep, activeStepIndex, writeCheckoutStep]);
 
 	const steps = [
 		{
+			disabled: Boolean(order),
 			title: (
 				<EditableText
 					blockId={block.id}
@@ -357,6 +452,7 @@ const CommerceCheckoutForm = ({
 			),
 		},
 		{
+			disabled: Boolean(order) || !hasItems,
 			title: (
 				<EditableText
 					blockId={block.id}
@@ -375,6 +471,7 @@ const CommerceCheckoutForm = ({
 			),
 		},
 		{
+			disabled: !order,
 			title: (
 				<EditableText
 					blockId={block.id}
@@ -394,15 +491,27 @@ const CommerceCheckoutForm = ({
 		},
 	];
 	const setItemQuantity = (itemId: string, nextQuantity: number) => {
+		desiredItemQuantitiesRef.current.set(itemId, nextQuantity);
 		const nextCart = applyItemQuantity(itemId, nextQuantity);
 		if (nextCart) {
 			emitCommerceCartUpdated(nextCart);
 		}
 		syncItemQuantity(itemId, nextQuantity);
 	};
-	const items = cart?.items ?? [];
-	const hasItems = items.length > 0;
-	const isCartStep = !order && stepIndex === 0;
+	const isDoneStep = activeStep === "done";
+	const isCartStep = activeStep === "cart";
+	const cartHref =
+		typeof block.props.cartHref === "string" && block.props.cartHref.trim()
+			? block.props.cartHref
+			: "/cart";
+	const accountOrdersHref =
+		typeof block.props.accountOrdersHref === "string" &&
+		block.props.accountOrdersHref.trim()
+			? block.props.accountOrdersHref
+			: "/account/orders";
+	const orderItems = order?.items ?? [];
+	const orderCurrency = order?.currency ?? cart?.currency ?? "KZT";
+	const orderTotal = order?.total_amount ?? cart?.total_amount ?? 0;
 	const checkoutFields =
 		Array.isArray(block.props.fields) && block.props.fields.length > 0
 			? block.props.fields
@@ -420,68 +529,66 @@ const CommerceCheckoutForm = ({
 						label: block.props.phoneLabel ?? checkoutDefaultFields[2]!.label,
 					},
 				];
-	const cartList = (
+	const cartList = hasItems ? (
 		<div className={`mt-8 overflow-hidden ${cx.surface}`}>
-			{hasItems ? (
-				<>
-					{items.map((item) => (
-						<div
-							key={item.id}
-							className="grid gap-4 border-b border-[color:var(--wb-site-border)] p-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto]"
-						>
-							<div className="min-w-0">
-								<div className={`font-semibold ${cx.strongText}`}>
-									{item.name}
-								</div>
-								<div className={`mt-1 text-sm ${cx.mutedText}`}>
-									{formatCommerceMoney(
-										item.unit_price,
-										cart?.currency ?? "KZT",
-										contentLocale,
-									)}
-								</div>
-								<div className="mt-4 flex items-center gap-3">
-									<Counter
-										value={item.quantity}
-										min={0}
-										valueLabel={item.name ?? "Quantity"}
-										onValueChange={(nextQuantity) => {
-											const nextCart = applyItemQuantity(
-												item.id,
-												nextQuantity,
-											);
+			{items.map((item) => (
+				<div
+					key={item.id}
+					className="grid gap-4 border-b border-[color:var(--wb-site-border)] p-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto]"
+				>
+					<div className="min-w-0">
+						<div className={`font-semibold ${cx.strongText}`}>
+							{item.name}
+						</div>
+						<div className={`mt-1 text-sm ${cx.mutedText}`}>
+							{formatCommerceMoney(
+								item.unit_price,
+								cart?.currency ?? "KZT",
+								contentLocale,
+							)}
+						</div>
+						<div className="mt-4 flex items-center gap-3">
+							<Counter
+								value={item.quantity}
+								min={0}
+								valueLabel={item.name ?? "Quantity"}
+								onValueChange={(nextQuantity) => {
+									const nextCart = applyItemQuantity(
+										item.id,
+										nextQuantity,
+									);
 
-											if (nextCart) {
-												emitCommerceCartUpdated(nextCart);
-											}
-										}}
-										onValueCommit={(nextQuantity) =>
-											setItemQuantity(item.id, nextQuantity)
-										}
-										className="h-10 min-w-32 border-[var(--wb-site-border)] bg-[color-mix(in_oklab,var(--wb-site-background)_86%,black)] text-[var(--wb-site-text)]"
-										buttonClassName="h-8 w-8 hover:bg-[color-mix(in_oklab,var(--wb-site-accent)_18%,transparent)]"
-										valueClassName="h-8"
-									/>
-									<button
-										type="button"
-										aria-label="Remove item"
-										onClick={() => setItemQuantity(item.id, 0)}
-										className={`flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--wb-site-border)] transition hover:border-[var(--wb-site-accent)] hover:text-[var(--wb-site-accent)] ${cx.mutedText}`}
-									>
-										<X className="h-4 w-4" />
-									</button>
-								</div>
-							</div>
-							<div className={`font-semibold ${cx.strongText}`}>
+									if (nextCart) {
+										emitCommerceCartUpdated(nextCart);
+									}
+								}}
+								onValueCommit={(nextQuantity) =>
+									setItemQuantity(item.id, nextQuantity)
+								}
+								className="h-10 min-w-32 border-[var(--wb-site-border)] bg-[color-mix(in_oklab,var(--wb-site-background)_86%,black)] text-[var(--wb-site-text)]"
+								buttonClassName="h-8 w-8 hover:bg-[color-mix(in_oklab,var(--wb-site-accent)_18%,transparent)]"
+								valueClassName="h-8"
+							/>
+							<button
+								type="button"
+								aria-label="Remove item"
+								onClick={() => setItemQuantity(item.id, 0)}
+								className={`flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--wb-site-border)] transition hover:border-[var(--wb-site-accent)] hover:text-[var(--wb-site-accent)] ${cx.mutedText}`}
+							>
+								<X className="h-4 w-4" />
+							</button>
+						</div>
+					</div>
+					<div className={`font-semibold ${cx.strongText}`}>
 								{formatCommerceMoney(
 									item.line_total,
 									cart?.currency ?? "KZT",
 									contentLocale,
 								)}
-							</div>
-						</div>
-					))}
-					<div className={`flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between ${cx.mutedSurface}`}>
+					</div>
+				</div>
+			))}
+			<div className={`flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between ${cx.mutedSurface}`}>
 						<div>
 							<EditableText
 								blockId={block.id}
@@ -509,24 +616,22 @@ const CommerceCheckoutForm = ({
 								className="font-semibold"
 							/>
 						</button>
-					</div>
-				</>
-			) : (
-				<div className={cx.empty}>
-					<EditableText
-						blockId={block.id}
-						path="cartEmptyTitle"
-						placeholder={getFallbackText("cartEmptyTitle")}
-						className={`text-lg font-semibold ${cx.strongText}`}
-					/>
-					<EditableTextarea
-						blockId={block.id}
-						path="cartEmptyBody"
-						placeholder={getFallbackText("cartEmptyBody")}
-						className={`mt-3 text-sm leading-7 ${cx.mutedText}`}
-					/>
-				</div>
-			)}
+			</div>
+		</div>
+	) : (
+		<div className={`mt-8 rounded-lg bg-[color-mix(in_oklab,var(--wb-site-surface)_58%,var(--wb-site-background))] px-6 py-10 text-center`}>
+			<EditableText
+				blockId={block.id}
+				path="cartEmptyTitle"
+				placeholder={getFallbackText("cartEmptyTitle")}
+				className={`text-lg font-semibold ${cx.strongText}`}
+			/>
+			<EditableTextarea
+				blockId={block.id}
+				path="cartEmptyBody"
+				placeholder={getFallbackText("cartEmptyBody")}
+				className={`mt-3 text-sm leading-7 ${cx.mutedText}`}
+			/>
 		</div>
 	);
 
@@ -536,7 +641,7 @@ const CommerceCheckoutForm = ({
 				<Breadcrumb className="mb-8">
 					<BreadcrumbList>
 						<BreadcrumbItem>
-							<WebsiteBuilderLink href={block.props.cartHref}>
+							<WebsiteBuilderLink href={cartHref}>
 								<EditableText
 									blockId={block.id}
 									path="breadcrumbCartLabel"
@@ -559,18 +664,26 @@ const CommerceCheckoutForm = ({
 					</BreadcrumbList>
 				</Breadcrumb>
 				<Steps
-					current={order ? 2 : stepIndex}
+					current={activeStepIndex}
 					className="mb-8"
 					items={steps}
-					onChange={(nextStep) => {
-						if (nextStep === 2 && !order) {
-							return;
-						}
+					onChange={
+						mode === "preview"
+							? (nextStep) => {
+									if (order && nextStep !== 2) {
+										return;
+									}
 
-						pushCheckoutStep(nextStep);
-					}}
+									if ((nextStep > 0 && !hasItems) || (nextStep === 2 && !order)) {
+										return;
+									}
+
+									pushCheckoutStep(nextStep);
+								}
+							: undefined
+					}
 				/>
-				<div className={isCartStep ? "" : "grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]"}>
+				<div className={isCartStep || isDoneStep ? "" : "grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]"}>
 					<div>
 					{isCartStep ? (
 						<>
@@ -584,6 +697,21 @@ const CommerceCheckoutForm = ({
 								blockId={block.id}
 								path="cartTitle"
 								placeholder={getFallbackText("cartTitle")}
+								as="h1"
+								className="mt-3 block text-3xl font-semibold leading-tight sm:text-5xl"
+							/>
+						</>
+					) : isDoneStep ? (
+						<>
+							<EditableText
+								blockId={block.id}
+								path="eyebrow"
+								className={cx.eyebrow}
+							/>
+							<EditableText
+								blockId={block.id}
+								path="successTitle"
+								placeholder={getFallbackText("successTitle")}
 								as="h1"
 								className="mt-3 block text-3xl font-semibold leading-tight sm:text-5xl"
 							/>
@@ -603,7 +731,7 @@ const CommerceCheckoutForm = ({
 							/>
 						</>
 					)}
-					{!isCartStep ? (
+					{!isCartStep && !isDoneStep ? (
 						<EditableTextarea
 							blockId={block.id}
 							path="body"
@@ -612,18 +740,111 @@ const CommerceCheckoutForm = ({
 					) : null}
 
 					{order ? (
-						<div className={`mt-8 p-5 ${cx.successPanel}`}>
-							<EditableText
-								blockId={block.id}
-								path="successTitle"
-								placeholder={getFallbackText("successTitle")}
-								className="text-lg font-semibold"
-							/>
-							<div className={`mt-2 text-sm ${cx.mutedText}`}>
-								{order.number}
+						<div className="mt-8 grid gap-6">
+							<div className={`p-5 ${cx.successPanel}`}>
+								<EditableTextarea
+									blockId={block.id}
+									path="successBody"
+									placeholder={getFallbackText("successBody")}
+									className={`max-w-2xl text-base leading-7 ${cx.mutedText}`}
+								/>
+								<div className="mt-5">
+									<WebsiteBuilderLink
+										href={accountOrdersHref}
+										className={cx.primaryButton}
+									>
+										<EditableText
+											blockId={block.id}
+											path="trackOrderLabel"
+											placeholder={getFallbackText("trackOrderLabel")}
+											className="font-semibold"
+										/>
+									</WebsiteBuilderLink>
+								</div>
+							</div>
+							<div className={`overflow-hidden ${cx.surface}`}>
+								<div className="border-b border-[color:var(--wb-site-border)] p-5">
+									<EditableText
+										blockId={block.id}
+										path="orderDetailsTitle"
+										placeholder={getFallbackText("orderDetailsTitle")}
+										className={`text-lg font-semibold ${cx.strongText}`}
+									/>
+									<dl className="mt-4 grid gap-4 text-sm sm:grid-cols-3">
+										<div>
+											<dt className={cx.mutedText}>
+												<EditableText
+													blockId={block.id}
+													path="orderNumberLabel"
+													placeholder={getFallbackText("orderNumberLabel")}
+												/>
+											</dt>
+											<dd className={`mt-1 font-semibold ${cx.strongText}`}>
+												{order.number}
+											</dd>
+										</div>
+										<div>
+											<dt className={cx.mutedText}>
+												<EditableText
+													blockId={block.id}
+													path="orderStatusLabel"
+													placeholder={getFallbackText("orderStatusLabel")}
+												/>
+											</dt>
+											<dd className={`mt-1 font-semibold ${cx.strongText}`}>
+												{order.status ?? getFallbackText("doneStepTitle")}
+											</dd>
+										</div>
+										<div>
+											<dt className={cx.mutedText}>
+												<EditableText
+													blockId={block.id}
+													path="orderTotalLabel"
+													placeholder={getFallbackText("orderTotalLabel")}
+												/>
+											</dt>
+											<dd className={`mt-1 font-semibold ${cx.strongText}`}>
+												{formatCommerceMoney(
+													order.total_amount,
+													order.currency,
+													contentLocale,
+												)}
+											</dd>
+										</div>
+									</dl>
+								</div>
+								<div className="divide-y divide-[color:var(--wb-site-border)]">
+									{order.items.map((item) => (
+										<div
+											key={item.id}
+											className="grid gap-3 p-5 sm:grid-cols-[minmax(0,1fr)_auto]"
+										>
+											<div className="min-w-0">
+												<div className={`font-semibold ${cx.strongText}`}>
+													{item.name}
+												</div>
+												<div className={`mt-1 text-sm ${cx.mutedText}`}>
+													{item.quantity} x{" "}
+													{formatCommerceMoney(
+														item.unit_price,
+														order.currency,
+														contentLocale,
+													)}
+												</div>
+											</div>
+											<div className={`font-semibold ${cx.strongText}`}>
+												{formatCommerceMoney(
+													item.line_total,
+													order.currency,
+													contentLocale,
+												)}
+											</div>
+										</div>
+									))}
+								</div>
 							</div>
 						</div>
-					) : stepIndex === 0 ? (
+					) : isCartStep ? (
 						cartList
 					) : (
 						<WebsiteBuilderForm
@@ -658,6 +879,8 @@ const CommerceCheckoutForm = ({
 										customerSnapshot: values,
 									});
 									setOrder(response.data);
+									setCart(null);
+									emitCommerceCartUpdated(null);
 									setStatus("idle");
 									pushCheckoutStep(2);
 								} catch {
@@ -668,7 +891,6 @@ const CommerceCheckoutForm = ({
 							<button
 								type="submit"
 								disabled={
-									mode !== "preview" ||
 									status === "saving" ||
 									!cart ||
 									cart.items.length === 0
@@ -698,7 +920,7 @@ const CommerceCheckoutForm = ({
 					)}
 					</div>
 
-					{isCartStep ? null : <aside className={`p-5 ${cx.surface}`}>
+					{isCartStep || isDoneStep ? null : <aside className={`p-5 ${cx.surface}`}>
 					<EditableText
 						blockId={block.id}
 						path="summaryTitle"
@@ -708,7 +930,7 @@ const CommerceCheckoutForm = ({
 					{cart && cart.items.length > 0 ? (
 						<>
 							<div className="mt-4 grid gap-3">
-								{cart.items.map((item) => (
+								{orderItems.map((item) => (
 									<div
 										key={item.id}
 										className="flex justify-between gap-4 text-sm"
@@ -719,7 +941,7 @@ const CommerceCheckoutForm = ({
 										<span className={`font-semibold ${cx.strongText}`}>
 											{formatCommerceMoney(
 												item.line_total,
-												cart.currency,
+												orderCurrency,
 												contentLocale,
 											)}
 										</span>
@@ -736,8 +958,8 @@ const CommerceCheckoutForm = ({
 									/>
 									<span>
 										{formatCommerceMoney(
-											cart.total_amount,
-											cart.currency,
+											orderTotal,
+											orderCurrency,
 											contentLocale,
 										)}
 									</span>
@@ -752,7 +974,7 @@ const CommerceCheckoutForm = ({
 								placeholder={getFallbackText("summaryEmptyBody")}
 								className={cx.mutedText}
 							/>{" "}
-							<WebsiteBuilderLink href={block.props.cartHref}>
+							<WebsiteBuilderLink href={cartHref}>
 								<EditableText
 									blockId={block.id}
 									path="summaryReturnLabel"
@@ -825,8 +1047,8 @@ export const commerceCheckoutFormDefinition: WebsiteBuilderBlockDefinition<Comme
 				ru: "Контакты и заказ",
 			}),
 			doneStepTitle: createWebsiteBuilderLocalizedDefault({
-				en: "Done",
-				ru: "Готово",
+				en: "Order confirmed",
+				ru: "Заказ оформлен",
 			}),
 			doneStepDescription: createWebsiteBuilderLocalizedDefault({
 				en: "Order placed",
@@ -899,10 +1121,35 @@ export const commerceCheckoutFormDefinition: WebsiteBuilderBlockDefinition<Comme
 				ru: "Не удалось разместить заказ",
 			}),
 			successTitle: createWebsiteBuilderLocalizedDefault({
-				en: "Order placed",
-				ru: "Заказ создан",
+				en: "Order confirmed",
+				ru: "Заказ оформлен",
+			}),
+			successBody: createWebsiteBuilderLocalizedDefault({
+				en: "We saved your order and will keep its status updated in your account.",
+				ru: "Мы сохранили заказ и будем обновлять его статус в личном кабинете.",
+			}),
+			orderDetailsTitle: createWebsiteBuilderLocalizedDefault({
+				en: "Order details",
+				ru: "Детали заказа",
+			}),
+			orderNumberLabel: createWebsiteBuilderLocalizedDefault({
+				en: "Order number",
+				ru: "Номер заказа",
+			}),
+			orderStatusLabel: createWebsiteBuilderLocalizedDefault({
+				en: "Status",
+				ru: "Статус",
+			}),
+			orderTotalLabel: createWebsiteBuilderLocalizedDefault({
+				en: "Total",
+				ru: "Итого",
+			}),
+			trackOrderLabel: createWebsiteBuilderLocalizedDefault({
+				en: "Track order status in your account",
+				ru: "Отслеживать статус заказа в личном кабинете",
 			}),
 			cartHref: "/cart",
+			accountOrdersHref: "/account/orders",
 		},
 		fields: [
 			{
@@ -1075,8 +1322,57 @@ export const commerceCheckoutFormDefinition: WebsiteBuilderBlockDefinition<Comme
 				localization: "localized",
 			},
 			{
+				path: "successBody",
+				label: "Success body",
+				kind: "textarea",
+				group: "content",
+				localization: "localized",
+			},
+			{
+				path: "orderDetailsTitle",
+				label: "Order details title",
+				kind: "text",
+				group: "content",
+				localization: "localized",
+			},
+			{
+				path: "orderNumberLabel",
+				label: "Order number label",
+				kind: "text",
+				group: "content",
+				localization: "localized",
+			},
+			{
+				path: "orderStatusLabel",
+				label: "Order status label",
+				kind: "text",
+				group: "content",
+				localization: "localized",
+			},
+			{
+				path: "orderTotalLabel",
+				label: "Order total label",
+				kind: "text",
+				group: "content",
+				localization: "localized",
+			},
+			{
+				path: "trackOrderLabel",
+				label: "Track order label",
+				kind: "text",
+				group: "content",
+				localization: "localized",
+			},
+			{
 				path: "cartHref",
 				label: "Cart URL",
+				kind: "text",
+				group: "data",
+				localization: "shared",
+			},
+			{
+				path: "accountOrdersHref",
+				label: "Account orders URL",
 				kind: "text",
 				group: "data",
 				localization: "shared",
@@ -1106,17 +1402,24 @@ export const commerceCheckoutFormDefinition: WebsiteBuilderBlockDefinition<Comme
 				"fields.*.options.*.label",
 				"fields.*.placeholder",
 				"nameLabel",
+				"orderDetailsTitle",
+				"orderNumberLabel",
+				"orderStatusLabel",
+				"orderTotalLabel",
 				"phoneLabel",
 				"savingLabel",
 				"submitLabel",
+				"successBody",
 				"successTitle",
 				"summaryEmptyBody",
 				"summaryReturnLabel",
 				"summaryTitle",
 				"summaryTotalLabel",
 				"title",
+				"trackOrderLabel",
 			],
 			shared: [
+				"accountOrdersHref",
 				"cartHref",
 				"fields.*.id",
 				"fields.*.locked",

@@ -17,6 +17,7 @@ import {
 } from "@init-modules/website-builder";
 import debounce from "lodash-es/debounce";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { shallow } from "zustand/shallow";
 import {
 	commerceBlockClassNames as cx,
 	emitCommerceCartUpdated,
@@ -31,6 +32,24 @@ type CommerceAddToCartProps = {
 	cartHref: string;
 };
 
+const resolveCartLine = (
+	cart: Parameters<typeof findCommerceCartItem>[0] | null | undefined,
+	product: Parameters<typeof findCommerceCartItem>[1] | null,
+) => {
+	if (!cart || !product) {
+		return null;
+	}
+
+	const line = findCommerceCartItem(cart, product);
+
+	return line
+		? {
+				id: line.id,
+				quantity: line.quantity,
+			}
+		: null;
+};
+
 const CommerceAddToCart = ({
 	block,
 }: WebsiteBuilderBlockComponentProps<CommerceAddToCartProps>) => {
@@ -39,15 +58,22 @@ const CommerceAddToCart = ({
 		useWebsiteBuilderValueAtPath(block.id, "product"),
 	);
 	const productId = product?.id ?? null;
-	const setCart = useCommerceCartStore((state) => state.setCart);
+	const { cart, setCart } = useCommerceCartStore(
+		(state) => ({
+			cart: state.cart,
+			setCart: state.setCart,
+		}),
+		shallow,
+	);
 	const [cartLine, setCartLine] = useState<null | {
 		id: string;
 		quantity: number;
-	}>(null);
+	}>(() => resolveCartLine(cart, product));
 	const [status, setStatus] = useState<
 		"idle" | "loading" | "error"
 	>("idle");
 	const cartLineRef = useRef(cartLine);
+	const desiredQuantityRef = useRef<number | null>(null);
 	const client = useMemo(
 		() => createCommerceClient(getCommerceRequest()),
 		[],
@@ -61,8 +87,19 @@ const CommerceAddToCart = ({
 	}, [cartLine]);
 
 	useEffect(() => {
+		if (desiredQuantityRef.current !== null) {
+			return;
+		}
+
+		setCartLine(resolveCartLine(cart, product));
+	}, [cart, product, productId]);
+
+	useEffect(() => {
 		if (!interactive || !productId || !product) {
-			setCartLine(null);
+			return;
+		}
+
+		if (cart) {
 			return;
 		}
 
@@ -72,6 +109,10 @@ const CommerceAddToCart = ({
 			.getCurrentCart()
 			.then((response) => {
 				if (!active) {
+					return;
+				}
+
+				if (desiredQuantityRef.current !== null) {
 					return;
 				}
 
@@ -91,7 +132,7 @@ const CommerceAddToCart = ({
 		return () => {
 			active = false;
 		};
-	}, [client, interactive, product, productId, setCart]);
+	}, [cart, client, interactive, product, productId, setCart]);
 
 	const syncQuantityNow = useCallback(async (nextQuantity: number) => {
 		if (!product || disabled) {
@@ -104,6 +145,9 @@ const CommerceAddToCart = ({
 			if (nextQuantity <= 0) {
 				if (cartLineRef.current?.id) {
 					const response = await client.removeCartItem(cartLineRef.current.id);
+					if (desiredQuantityRef.current !== nextQuantity) {
+						return;
+					}
 					const line = findCommerceCartItem(response.data, product);
 					setCart(response.data);
 					emitCommerceCartUpdated(response.data);
@@ -111,12 +155,18 @@ const CommerceAddToCart = ({
 						line ? { id: line.id, quantity: line.quantity } : null,
 					);
 				} else {
+					if (desiredQuantityRef.current !== nextQuantity) {
+						return;
+					}
 					setCartLine(null);
 				}
 			} else if (cartLineRef.current?.id) {
 				const response = await client.updateCartItem(cartLineRef.current.id, {
 					quantity: nextQuantity,
 				});
+				if (desiredQuantityRef.current !== nextQuantity) {
+					return;
+				}
 				const line = findCommerceCartItem(response.data, product);
 				setCart(response.data);
 				emitCommerceCartUpdated(response.data);
@@ -129,6 +179,9 @@ const CommerceAddToCart = ({
 					quantity: nextQuantity,
 					replace: true,
 				});
+				if (desiredQuantityRef.current !== nextQuantity) {
+					return;
+				}
 				const line = findCommerceCartItem(response.data, product);
 				setCart(response.data);
 				emitCommerceCartUpdated(response.data);
@@ -137,8 +190,13 @@ const CommerceAddToCart = ({
 				);
 			}
 
+			desiredQuantityRef.current = null;
 			setStatus("idle");
 		} catch {
+			if (desiredQuantityRef.current !== nextQuantity) {
+				return;
+			}
+
 			setStatus("error");
 		}
 	}, [client, disabled, product, setCart]);
@@ -168,6 +226,7 @@ const CommerceAddToCart = ({
 				? { ...currentLine, quantity: nextQuantity }
 				: { id: "", quantity: nextQuantity },
 		);
+		desiredQuantityRef.current = nextQuantity;
 		syncQuantity(nextQuantity);
 	};
 
@@ -186,13 +245,14 @@ const CommerceAddToCart = ({
 							min={0}
 							disabled={!interactive}
 							valueLabel={block.props.quantityLabel}
-							onValueChange={(nextQuantity) =>
+							onValueChange={(nextQuantity) => {
 								setCartLine((currentLine) =>
 									currentLine
 										? { ...currentLine, quantity: nextQuantity }
 										: { id: "", quantity: nextQuantity },
-								)
-							}
+								);
+								desiredQuantityRef.current = nextQuantity;
+							}}
 							onValueCommit={syncQuantity}
 							className="min-w-36 border-[var(--wb-site-border)] bg-[color-mix(in_oklab,var(--wb-site-background)_86%,black)] text-[var(--wb-site-text)]"
 							buttonClassName="hover:bg-[color-mix(in_oklab,var(--wb-site-accent)_18%,transparent)]"

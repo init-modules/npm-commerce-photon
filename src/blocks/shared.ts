@@ -3,6 +3,11 @@ import type {
 	CommerceCartItem,
 	CommerceCatalogItemView,
 } from "@init-modules/commerce";
+import {
+	applyCommerceCartItemQuantity as applyCommerceCartItemQuantityFromStore,
+	normalizeCommerceCartTotals,
+	toCommerceAmountNumber,
+} from "@init-modules/commerce";
 
 export const commerceBlockClassNames = {
 	section:
@@ -117,7 +122,9 @@ export const normalizeCommerceCart = (value: unknown): CommerceCart | null => {
 
 	const cart = value as CommerceCart;
 
-	return Array.isArray(cart.items) && typeof cart.id === "string" ? cart : null;
+	return Array.isArray(cart.items) && typeof cart.id === "string"
+		? normalizeCommerceCartTotals(cart)
+		: null;
 };
 
 export const getCommerceCartFromResources = (
@@ -128,43 +135,9 @@ export const applyCommerceCartItemQuantity = (
 	cart: CommerceCart,
 	itemId: string,
 	quantity: number,
-): CommerceCart => {
-	const nextItems = cart.items.flatMap((item) => {
-		if (item.id !== itemId) {
-			return [item];
-		}
+): CommerceCart => applyCommerceCartItemQuantityFromStore(cart, itemId, quantity);
 
-		if (quantity <= 0) {
-			return [];
-		}
-
-		return [
-			{
-				...item,
-				quantity,
-				line_base_total: item.base_price * quantity,
-				line_total: item.unit_price * quantity,
-			},
-		];
-	});
-	const subtotal = nextItems.reduce(
-		(total, item) => total + item.line_base_total,
-		0,
-	);
-	const total = nextItems.reduce((sum, item) => sum + item.line_total, 0);
-	const itemsQuantity = nextItems.reduce((sum, item) => sum + item.quantity, 0);
-
-	return {
-		...cart,
-		items: nextItems,
-		item_count: nextItems.length,
-		items_quantity: itemsQuantity,
-		subtotal_amount: subtotal,
-		total_amount: total,
-	};
-};
-
-export const emitCommerceCartUpdated = (cart: CommerceCart) => {
+export const emitCommerceCartUpdated = (cart: CommerceCart | null) => {
 	if (typeof window === "undefined") {
 		return;
 	}
@@ -177,7 +150,7 @@ export const emitCommerceCartUpdated = (cart: CommerceCart) => {
 };
 
 export const formatCommerceMoney = (
-	amount: null | number | undefined,
+	amount: null | number | string | undefined,
 	currency = "KZT",
 	locale = "en",
 ) =>
@@ -185,4 +158,4 @@ export const formatCommerceMoney = (
 		style: "currency",
 		currency,
 		maximumFractionDigits: 0,
-	}).format((amount ?? 0) / 100);
+	}).format(toCommerceAmountNumber(amount) / 100);

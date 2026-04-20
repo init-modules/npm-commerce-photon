@@ -24,7 +24,7 @@ import {
 } from "@init-modules/website-builder";
 import debounce from "lodash-es/debounce";
 import { X } from "lucide-react";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
 import {
 	commerceBlockClassNames as cx,
@@ -76,6 +76,7 @@ const CommerceCartSummary = ({
 			shallow,
 		);
 	const isCartLoaded = cart !== null;
+	const desiredItemQuantitiesRef = useRef(new Map<string, number>());
 	const client = useMemo(
 		() => createCommerceClient(getCommerceRequest()),
 		[],
@@ -135,10 +136,19 @@ const CommerceCartSummary = ({
 								quantity: nextQuantity,
 							});
 
+				if (desiredItemQuantitiesRef.current.get(itemId) !== nextQuantity) {
+					return;
+				}
+
+				desiredItemQuantitiesRef.current.delete(itemId);
 				setCart(response.data);
 				emitCommerceCartUpdated(response.data);
 				setStatus("ready");
 			} catch {
+				if (desiredItemQuantitiesRef.current.get(itemId) !== nextQuantity) {
+					return;
+				}
+
 				setStatus("error");
 			}
 		},
@@ -161,6 +171,7 @@ const CommerceCartSummary = ({
 	);
 
 	const setItemQuantity = (itemId: string, nextQuantity: number) => {
+		desiredItemQuantitiesRef.current.set(itemId, nextQuantity);
 		const nextCart = applyItemQuantity(itemId, nextQuantity);
 		if (nextCart) {
 			emitCommerceCartUpdated(nextCart);

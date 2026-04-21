@@ -4,7 +4,7 @@ import type { CommerceCartItem } from "@init-modules/commerce";
 import {
 	EditableText,
 	WebsiteBuilderLink,
-} from "@init-modules/website-builder";
+} from "@init-modules/website-builder/public";
 import {
 	commerceBlockClassNames as cx,
 	formatCommerceMoney,

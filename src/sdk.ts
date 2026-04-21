@@ -3,7 +3,7 @@ import {
 	createWebsiteBuilderSiteFrameExtension,
 	type WebsiteBuilderAccountTabExtension,
 	type WebsiteBuilderSiteFrameExtension,
-} from "@init-modules/website-builder";
+} from "@init-modules/website-builder/public";
 
 export const commerceWebsiteBuilderSiteFrameExtension: WebsiteBuilderSiteFrameExtension =
 	createWebsiteBuilderSiteFrameExtension({
@@ -50,5 +50,10 @@ export const commerceOrdersAccountTab: WebsiteBuilderAccountTabExtension =
 		id: "commerce:orders",
 		label: "Orders",
 		href: "/account/orders",
+		icon: "receipt",
+		match: {
+			type: "prefix",
+			href: "/account/orders",
+		},
 		order: 30,
 	});

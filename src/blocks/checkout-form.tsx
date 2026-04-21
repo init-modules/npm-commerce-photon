@@ -14,6 +14,7 @@ import {
 	BreadcrumbSeparator,
 	Counter,
 	Steps,
+	type StepItem,
 } from "@init-modules/ui";
 import {
 	createWebsiteBuilderFormFieldsField,
@@ -31,7 +32,7 @@ import {
 	WebsiteBuilderLink,
 	type WebsiteBuilderBlockComponentProps,
 	type WebsiteBuilderBlockDefinition,
-} from "@init-modules/website-builder";
+} from "@init-modules/website-builder/public";
 import debounce from "lodash-es/debounce";
 import { X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -432,7 +433,7 @@ const CommerceCheckoutForm = ({
 		}
 	}, [activeStep, activeStepIndex, writeCheckoutStep]);
 
-	const steps = [
+	const steps: StepItem[] = [
 		{
 			disabled: Boolean(order),
 			title: (
@@ -473,6 +474,7 @@ const CommerceCheckoutForm = ({
 		},
 		{
 			disabled: !order,
+			status: order ? "finish" : undefined,
 			title: (
 				<EditableText
 					blockId={block.id}
@@ -771,8 +773,8 @@ const CommerceCheckoutForm = ({
 										placeholder={getFallbackText("orderDetailsTitle")}
 										className={`text-lg font-semibold ${cx.strongText}`}
 									/>
-									<dl className="mt-4 grid gap-4 text-sm sm:grid-cols-3">
-										<div>
+									<dl className="mt-5 grid gap-3 text-sm">
+										<div className="flex w-full items-start justify-between gap-6">
 											<dt className={cx.mutedText}>
 												<EditableText
 													blockId={block.id}
@@ -780,11 +782,11 @@ const CommerceCheckoutForm = ({
 													placeholder={getFallbackText("orderNumberLabel")}
 												/>
 											</dt>
-											<dd className={`mt-1 font-semibold ${cx.strongText}`}>
+											<dd className={`max-w-[65%] text-right font-semibold ${cx.strongText}`}>
 												{order.number}
 											</dd>
 										</div>
-										<div>
+										<div className="flex w-full items-start justify-between gap-6">
 											<dt className={cx.mutedText}>
 												<EditableText
 													blockId={block.id}
@@ -792,11 +794,11 @@ const CommerceCheckoutForm = ({
 													placeholder={getFallbackText("orderStatusLabel")}
 												/>
 											</dt>
-											<dd className={`mt-1 font-semibold ${cx.strongText}`}>
+											<dd className={`max-w-[65%] text-right font-semibold ${cx.strongText}`}>
 												{order.status ?? getFallbackText("doneStepTitle")}
 											</dd>
 										</div>
-										<div>
+										<div className="flex w-full items-start justify-between gap-6">
 											<dt className={cx.mutedText}>
 												<EditableText
 													blockId={block.id}
@@ -804,7 +806,7 @@ const CommerceCheckoutForm = ({
 													placeholder={getFallbackText("orderTotalLabel")}
 												/>
 											</dt>
-											<dd className={`mt-1 font-semibold ${cx.strongText}`}>
+											<dd className={`max-w-[65%] text-right font-semibold ${cx.strongText}`}>
 												{formatCommerceMoney(
 													order.total_amount,
 													order.currency,
@@ -818,7 +820,7 @@ const CommerceCheckoutForm = ({
 									{order.items.map((item) => (
 										<div
 											key={item.id}
-											className="grid gap-3 p-5 sm:grid-cols-[minmax(0,1fr)_auto]"
+											className="flex flex-col gap-3 p-5 sm:flex-row sm:items-start sm:justify-between"
 										>
 											<div className="min-w-0">
 												<div className={`font-semibold ${cx.strongText}`}>
@@ -833,7 +835,7 @@ const CommerceCheckoutForm = ({
 													)}
 												</div>
 											</div>
-											<div className={`font-semibold ${cx.strongText}`}>
+											<div className={`shrink-0 text-right font-semibold ${cx.strongText}`}>
 												{formatCommerceMoney(
 													item.line_total,
 													order.currency,
@@ -875,8 +877,25 @@ const CommerceCheckoutForm = ({
 								setStatus("saving");
 
 								try {
+									let checkoutCart = cart;
+
+									if (
+										authResource?.user &&
+										checkoutCart &&
+										!checkoutCart.actor?.authenticated
+									) {
+										const syncResponse = await client.syncCurrentCart();
+										checkoutCart = syncResponse.data;
+										setCart(checkoutCart);
+										emitCommerceCartUpdated(checkoutCart);
+									}
+
+									if (!checkoutCart || checkoutCart.items.length === 0) {
+										throw new Error("Cannot place an order from an empty cart.");
+									}
+
 									const response = await client.checkout({
-										cartId: cart?.id,
+										cartId: checkoutCart.id,
 										customerSnapshot: values,
 									});
 									setOrder(response.data);

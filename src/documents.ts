@@ -1,7 +1,7 @@
 import type {
 	WebsiteBuilderBlock,
 	WebsiteBuilderDocument,
-} from "@init-modules/website-builder";
+} from "@init-modules/website-builder/public";
 
 export type CommerceWebsiteBuilderLocale = "en" | "ru";
 export type CommerceProfileStarterPresetId =
@@ -152,6 +152,40 @@ const createDocument = (
 	blocks,
 });
 
+const createAccountShellBlock = (
+	locale: CommerceWebsiteBuilderLocale,
+	id: string,
+	blocks: WebsiteBuilderBlock[],
+): WebsiteBuilderBlock => ({
+	id,
+	module: "auth-website-builder",
+	type: "auth-account-shell",
+	props: {
+		eyebrow: copy(locale, "Account", "Личный кабинет"),
+		title: copy(locale, "Manage your account", "Управляйте аккаунтом"),
+		body: copy(
+			locale,
+			"Review profile details and open package-provided workspace tabs.",
+			"Проверьте данные профиля и откройте вкладки, которые предоставляют пакеты.",
+		),
+		signedOutTitle: copy(locale, "Sign in to continue", "Войдите, чтобы продолжить"),
+		signedOutBody: copy(
+			locale,
+			"Your account page is available after authentication.",
+			"Личный кабинет доступен после авторизации.",
+		),
+		signInLabel: copy(locale, "Sign in", "Войти"),
+		disabledTabIds: [],
+	},
+	areas: [
+		{
+			id: "content",
+			label: copy(locale, "Account content", "Содержимое кабинета"),
+			blocks,
+		},
+	],
+});
+
 export const createCommerceStorefrontDocument = (
 	locale: CommerceWebsiteBuilderLocale = "en",
 	kind: CommerceStorefrontKind = "products",
@@ -274,27 +308,29 @@ export const createCommerceAccountOrdersDocument = (
 		copy(locale, "Account Orders", "Заказы в личном кабинете"),
 		"/account/orders",
 		[
-			{
-				id: "commerce-order-list",
-				module: "commerce-website-builder",
-				type: "commerce-order-list",
-				props: {
-					eyebrow: copy(locale, "Account", "Личный кабинет"),
-					title: copy(locale, "Your orders", "Ваши заказы"),
-					emptyTitle: copy(locale, "No orders yet", "Заказов пока нет"),
-					emptyBody: copy(
-						locale,
-						"Checkout your first cart to see order history here.",
-						"Оформите первую корзину, чтобы увидеть историю заказов.",
-					),
-					orderLabel: copy(locale, "Order", "Заказ"),
-					totalLabel: copy(locale, "Total", "Итого"),
-					itemCountLabel: copy(locale, "items", "позиций"),
-					catalogLabel: copy(locale, "Open catalog", "Открыть каталог"),
-					catalogHref: "/products",
-					limit: 20,
+			createAccountShellBlock(locale, "commerce-account-orders-shell", [
+				{
+					id: "commerce-order-list",
+					module: "commerce-website-builder",
+					type: "commerce-order-list",
+					props: {
+						eyebrow: copy(locale, "Account", "Личный кабинет"),
+						title: copy(locale, "Your orders", "Ваши заказы"),
+						emptyTitle: copy(locale, "No orders yet", "Заказов пока нет"),
+						emptyBody: copy(
+							locale,
+							"Checkout your first cart to see order history here.",
+							"Оформите первую корзину, чтобы увидеть историю заказов.",
+						),
+						orderLabel: copy(locale, "Order", "Заказ"),
+						totalLabel: copy(locale, "Total", "Итого"),
+						itemCountLabel: copy(locale, "items", "позиций"),
+						catalogLabel: copy(locale, "Open catalog", "Открыть каталог"),
+						catalogHref: "/products",
+						limit: 20,
+					},
 				},
-			},
+			]),
 		],
 	);
 

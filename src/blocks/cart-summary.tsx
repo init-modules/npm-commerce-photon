@@ -21,7 +21,7 @@ import {
 	WebsiteBuilderLink,
 	type WebsiteBuilderBlockComponentProps,
 	type WebsiteBuilderBlockDefinition,
-} from "@init-modules/website-builder";
+} from "@init-modules/website-builder/public";
 import debounce from "lodash-es/debounce";
 import { X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";

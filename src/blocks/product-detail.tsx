@@ -10,7 +10,7 @@ import {
 	WebsiteBuilderLink,
 	type WebsiteBuilderBlockComponentProps,
 	type WebsiteBuilderBlockDefinition,
-} from "@init-modules/website-builder";
+} from "@init-modules/website-builder/public";
 import {
 	commerceBlockClassNames as cx,
 	formatCommerceMoney,

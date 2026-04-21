@@ -14,7 +14,7 @@ import {
 	WebsiteBuilderLink,
 	type WebsiteBuilderBlockComponentProps,
 	type WebsiteBuilderBlockDefinition,
-} from "@init-modules/website-builder";
+} from "@init-modules/website-builder/public";
 import debounce from "lodash-es/debounce";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";

@@ -13,13 +13,12 @@ import {
 	commerceProductDetailDefinition,
 	commerceProductGridDefinition,
 } from "./blocks";
-import { commerceWebsiteBuilderDocuments } from "./documents";
 import {
 	commerceOrdersAccountTab,
 	commerceWebsiteBuilderSiteFrameExtension,
 } from "./sdk";
 
-export const commerceWebsiteBuilderModule: WebsiteBuilderModule = {
+export const commercePublicWebsiteBuilderModule: WebsiteBuilderModule = {
 	module: "commerce-website-builder",
 	label: "Commerce Website Builder",
 	labelKey: "commerceWebsiteBuilder.module.label",
@@ -34,12 +33,11 @@ export const commerceWebsiteBuilderModule: WebsiteBuilderModule = {
 	],
 };
 
-export const commerceWebsiteBuilderKit: WebsiteBuilderInstallableKit =
+export const commercePublicWebsiteBuilderKit: WebsiteBuilderInstallableKit =
 	createWebsiteBuilderKit({
 		key: "commerce-website-builder",
 		label: "Commerce Website Builder",
-		modules: [commerceWebsiteBuilderModule],
-		documents: commerceWebsiteBuilderDocuments,
+		modules: [commercePublicWebsiteBuilderModule],
 		siteFrameExtensions: [commerceWebsiteBuilderSiteFrameExtension],
 		accountTabs: [commerceOrdersAccountTab],
 	});

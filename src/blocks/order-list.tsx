@@ -15,7 +15,7 @@ import {
 	WebsiteBuilderLink,
 	type WebsiteBuilderBlockComponentProps,
 	type WebsiteBuilderBlockDefinition,
-} from "@init-modules/website-builder";
+} from "@init-modules/website-builder/public";
 import { useEffect, useMemo, useState } from "react";
 import { commerceBlockClassNames as cx, formatCommerceMoney } from "./shared";
 
@@ -43,9 +43,7 @@ const CommerceOrderList = ({
 		| undefined;
 	const isAuthenticated = Boolean(authResource?.user);
 	const [orders, setOrders] = useState<CommerceOrder[]>([]);
-	const [status, setStatus] = useState<"idle" | "loading" | "ready" | "error">(
-		"idle",
-	);
+	const [status, setStatus] = useState<"idle" | "loading" | "ready">("idle");
 	const client = useMemo(
 		() => createCommerceClient(getCommerceRequest()),
 		[],
@@ -76,7 +74,8 @@ const CommerceOrderList = ({
 					return;
 				}
 
-				setStatus("error");
+				setOrders([]);
+				setStatus("ready");
 			});
 
 		return () => {
@@ -192,11 +191,6 @@ const CommerceOrderList = ({
 					</div>
 				)}
 
-				{status === "error" ? (
-					<div className={`mt-4 text-sm ${cx.errorText}`}>
-						Unable to load orders
-					</div>
-				) : null}
 			</div>
 		</section>
 	);

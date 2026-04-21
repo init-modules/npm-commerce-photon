@@ -5,10 +5,7 @@ import {
 	EditableText,
 	WebsiteBuilderLink,
 } from "@init-modules/website-builder/public";
-import {
-	commerceBlockClassNames as cx,
-	formatCommerceMoney,
-} from "./shared";
+import { commerceBlockClassNames as cx, formatCommerceMoney } from "./shared";
 
 type CommerceCheckoutSummaryProps = {
 	blockId: string;

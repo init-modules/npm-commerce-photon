@@ -28,12 +28,10 @@ export const commerceBlockClassNames = {
 		"inline-flex h-11 items-center justify-center rounded-lg bg-[var(--wb-site-accent)] px-5 text-sm font-semibold text-[var(--wb-site-background)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-[color-mix(in_oklab,var(--wb-site-border)_72%,var(--wb-site-surface))] disabled:text-[var(--wb-site-muted-text)]",
 	secondaryButton:
 		"inline-flex h-11 items-center justify-center rounded-lg border border-[color:var(--wb-site-border)] bg-[var(--wb-site-surface)] px-5 text-sm font-semibold text-[var(--wb-site-text)] transition hover:border-[var(--wb-site-accent)]",
-	card:
-		"group flex min-w-0 flex-col overflow-hidden rounded-lg border border-[color:var(--wb-site-border)] bg-[color-mix(in_oklab,var(--wb-site-surface)_86%,var(--wb-site-background))] transition hover:border-[var(--wb-site-accent)] hover:bg-[var(--wb-site-surface)]",
+	card: "group flex min-w-0 flex-col overflow-hidden rounded-lg border border-[color:var(--wb-site-border)] bg-[color-mix(in_oklab,var(--wb-site-surface)_86%,var(--wb-site-background))] transition hover:border-[var(--wb-site-accent)] hover:bg-[var(--wb-site-surface)]",
 	empty:
 		"mt-8 rounded-lg border border-dashed border-[color:var(--wb-site-border)] bg-[color-mix(in_oklab,var(--wb-site-surface)_72%,var(--wb-site-background))] px-6 py-10 text-center",
-	pill:
-		"rounded-full border border-[color:var(--wb-site-border)] bg-[color-mix(in_oklab,var(--wb-site-accent)_12%,transparent)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--wb-site-accent)]",
+	pill: "rounded-full border border-[color:var(--wb-site-border)] bg-[color-mix(in_oklab,var(--wb-site-accent)_12%,transparent)] px-3 py-1 text-xs font-semibold uppercase tracking-[0.12em] text-[var(--wb-site-accent)]",
 	errorText: "text-[color-mix(in_oklab,#ef4444_78%,var(--wb-site-text))]",
 	successPanel:
 		"rounded-lg border border-[color-mix(in_oklab,var(--wb-site-accent)_48%,var(--wb-site-border))] bg-[color-mix(in_oklab,var(--wb-site-accent)_12%,var(--wb-site-surface))]",
@@ -113,7 +111,7 @@ export const indexCommerceCartItems = (
 					quantity: item.quantity,
 				},
 			]),
-		);
+	);
 
 export const normalizeCommerceCart = (value: unknown): CommerceCart | null => {
 	if (typeof value !== "object" || value === null) {
@@ -135,7 +133,8 @@ export const applyCommerceCartItemQuantity = (
 	cart: CommerceCart,
 	itemId: string,
 	quantity: number,
-): CommerceCart => applyCommerceCartItemQuantityFromStore(cart, itemId, quantity);
+): CommerceCart =>
+	applyCommerceCartItemQuantityFromStore(cart, itemId, quantity);
 
 export const emitCommerceCartUpdated = (cart: CommerceCart | null) => {
 	if (typeof window === "undefined") {

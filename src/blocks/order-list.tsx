@@ -12,9 +12,9 @@ import {
 	EditableTextarea,
 	useWebsiteBuilder,
 	useWebsiteBuilderI18n,
-	WebsiteBuilderLink,
 	type WebsiteBuilderBlockComponentProps,
 	type WebsiteBuilderBlockDefinition,
+	WebsiteBuilderLink,
 } from "@init-modules/website-builder/public";
 import { useEffect, useMemo, useState } from "react";
 import { commerceBlockClassNames as cx, formatCommerceMoney } from "./shared";
@@ -44,10 +44,7 @@ const CommerceOrderList = ({
 	const isAuthenticated = Boolean(authResource?.user);
 	const [orders, setOrders] = useState<CommerceOrder[]>([]);
 	const [status, setStatus] = useState<"idle" | "loading" | "ready">("idle");
-	const client = useMemo(
-		() => createCommerceClient(getCommerceRequest()),
-		[],
-	);
+	const client = useMemo(() => createCommerceClient(getCommerceRequest()), []);
 
 	useEffect(() => {
 		if (mode !== "preview" || !isAuthenticated) {
@@ -131,9 +128,7 @@ const CommerceOrderList = ({
 											{block.props.orderLabel} {order.number}
 										</div>
 										{order.status ? (
-											<span className={cx.pill}>
-												{order.status}
-											</span>
+											<span className={cx.pill}>{order.status}</span>
 										) : null}
 									</div>
 									<div className={`mt-2 text-sm ${cx.mutedText}`}>
@@ -159,7 +154,9 @@ const CommerceOrderList = ({
 									<div className={`text-sm ${cx.mutedText}`}>
 										{block.props.totalLabel}
 									</div>
-									<div className={`mt-1 text-xl font-semibold ${cx.strongText}`}>
+									<div
+										className={`mt-1 text-xl font-semibold ${cx.strongText}`}
+									>
 										{formatCommerceMoney(
 											order.total_amount,
 											order.currency,
@@ -190,7 +187,6 @@ const CommerceOrderList = ({
 						</WebsiteBuilderLink>
 					</div>
 				)}
-
 			</div>
 		</section>
 	);

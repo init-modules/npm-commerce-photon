@@ -1,6 +1,9 @@
 "use client";
 
-import { createCommerceClient, getCommerceRequest } from "@init-modules/commerce";
+import {
+	createCommerceClient,
+	getCommerceRequest,
+} from "@init-modules/commerce";
 import { useCommerceCartStore } from "@init-modules/commerce/client";
 import {
 	Breadcrumb,
@@ -18,9 +21,9 @@ import {
 	EditableTextarea,
 	useWebsiteBuilder,
 	useWebsiteBuilderI18n,
-	WebsiteBuilderLink,
 	type WebsiteBuilderBlockComponentProps,
 	type WebsiteBuilderBlockDefinition,
+	WebsiteBuilderLink,
 } from "@init-modules/website-builder/public";
 import debounce from "lodash-es/debounce";
 import { X } from "lucide-react";
@@ -43,21 +46,22 @@ type CommerceCartSummaryProps = {
 	checkoutHref: string;
 };
 
-const createCheckoutSteps = (locale: string, current: number) => [
-	{
-		title: locale === "ru" ? "Корзина" : "Cart",
-		description: locale === "ru" ? "Проверьте позиции" : "Review items",
-	},
-	{
-		title: locale === "ru" ? "Оформление" : "Checkout",
-		description: locale === "ru" ? "Контакты и заказ" : "Contacts and order",
-	},
-	{
-		title: locale === "ru" ? "Готово" : "Done",
-		description: locale === "ru" ? "Заказ создан" : "Order placed",
-		status: current > 1 ? "finish" : undefined,
-	},
-] as const;
+const createCheckoutSteps = (locale: string, current: number) =>
+	[
+		{
+			title: locale === "ru" ? "Корзина" : "Cart",
+			description: locale === "ru" ? "Проверьте позиции" : "Review items",
+		},
+		{
+			title: locale === "ru" ? "Оформление" : "Checkout",
+			description: locale === "ru" ? "Контакты и заказ" : "Contacts and order",
+		},
+		{
+			title: locale === "ru" ? "Готово" : "Done",
+			description: locale === "ru" ? "Заказ создан" : "Order placed",
+			status: current > 1 ? "finish" : undefined,
+		},
+	] as const;
 
 const CommerceCartSummary = ({
 	block,
@@ -77,10 +81,7 @@ const CommerceCartSummary = ({
 		);
 	const isCartLoaded = cart !== null;
 	const desiredItemQuantitiesRef = useRef(new Map<string, number>());
-	const client = useMemo(
-		() => createCommerceClient(getCommerceRequest()),
-		[],
-	);
+	const client = useMemo(() => createCommerceClient(getCommerceRequest()), []);
 
 	useEffect(() => {
 		if (mode !== "preview") {
@@ -274,7 +275,9 @@ const CommerceCartSummary = ({
 								</div>
 							</div>
 						))}
-						<div className={`flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between ${cx.mutedSurface}`}>
+						<div
+							className={`flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between ${cx.mutedSurface}`}
+						>
 							<div>
 								<div className={`text-sm ${cx.mutedText}`}>Total</div>
 								<div className="text-2xl font-semibold">

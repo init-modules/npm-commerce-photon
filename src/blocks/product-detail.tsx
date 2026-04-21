@@ -5,11 +5,12 @@ import {
 	defineWebsiteBuilderBlockDefinition,
 	EditableText,
 	EditableTextarea,
+	useWebsiteBuilder,
 	useWebsiteBuilderI18n,
 	useWebsiteBuilderValueAtPath,
-	WebsiteBuilderLink,
 	type WebsiteBuilderBlockComponentProps,
 	type WebsiteBuilderBlockDefinition,
+	WebsiteBuilderLink,
 } from "@init-modules/website-builder/public";
 import {
 	commerceBlockClassNames as cx,
@@ -29,9 +30,16 @@ const CommerceProductDetail = ({
 	block,
 }: WebsiteBuilderBlockComponentProps<CommerceProductDetailProps>) => {
 	const { contentLocale } = useWebsiteBuilderI18n();
+	const { resources } = useWebsiteBuilder();
 	const product = normalizeCommerceProduct(
 		useWebsiteBuilderValueAtPath(block.id, "product"),
 	);
+	const commerceProductResource =
+		typeof resources.commerceProduct === "object" &&
+		resources.commerceProduct !== null
+			? (resources.commerceProduct as Record<string, unknown>)
+			: null;
+	const isMissingProduct = commerceProductResource?.status === "not-found";
 
 	return (
 		<section className={`${cx.section} py-12`}>
@@ -44,8 +52,16 @@ const CommerceProductDetail = ({
 								alt={product.name}
 								className="h-full w-full object-cover"
 							/>
+						) : isMissingProduct ? (
+							<div
+								className={`flex h-full min-h-[320px] items-center justify-center px-8 text-center text-sm ${cx.mutedText}`}
+							>
+								Product not found
+							</div>
 						) : (
-							<div className={`flex h-full min-h-[320px] items-center justify-center px-8 text-center text-sm ${cx.mutedText}`}>
+							<div
+								className={`flex h-full min-h-[320px] items-center justify-center px-8 text-center text-sm ${cx.mutedText}`}
+							>
 								Product media
 							</div>
 						)}
@@ -66,34 +82,49 @@ const CommerceProductDetail = ({
 						path="eyebrow"
 						className={cx.eyebrow}
 					/>
-					<EditableText
-						blockId={block.id}
-						path="product.name"
-						as="h1"
-						placeholder="Product"
-						className="mt-3 block text-4xl font-semibold leading-tight sm:text-6xl"
-					/>
-					{block.props.showSku && product?.sku ? (
-						<EditableText
-							blockId={block.id}
-							path="product.sku"
-							className={`mt-4 block text-sm uppercase tracking-[0.18em] ${cx.mutedText}`}
-						/>
-					) : null}
-					<div className={`mt-6 text-2xl font-semibold ${cx.strongText}`}>
-						{formatCommerceMoney(
-							product?.publicPriceAmount,
-							product?.currency ?? "KZT",
-							contentLocale,
-						)}
-					</div>
-					{block.props.showDescription && product?.description ? (
-						<EditableTextarea
-							blockId={block.id}
-							path="product.description"
-							className={`mt-6 max-w-2xl text-base leading-8 ${cx.mutedText}`}
-						/>
-					) : null}
+					{isMissingProduct ? (
+						<>
+							<h1 className="mt-3 block text-4xl font-semibold leading-tight sm:text-6xl">
+								Product not found
+							</h1>
+							<p
+								className={`mt-6 max-w-2xl text-base leading-8 ${cx.mutedText}`}
+							>
+								This catalog item is no longer available.
+							</p>
+						</>
+					) : (
+						<>
+							<EditableText
+								blockId={block.id}
+								path="product.name"
+								as="h1"
+								placeholder="Product"
+								className="mt-3 block text-4xl font-semibold leading-tight sm:text-6xl"
+							/>
+							{block.props.showSku && product?.sku ? (
+								<EditableText
+									blockId={block.id}
+									path="product.sku"
+									className={`mt-4 block text-sm uppercase tracking-[0.18em] ${cx.mutedText}`}
+								/>
+							) : null}
+							<div className={`mt-6 text-2xl font-semibold ${cx.strongText}`}>
+								{formatCommerceMoney(
+									product?.publicPriceAmount,
+									product?.currency ?? "KZT",
+									contentLocale,
+								)}
+							</div>
+							{block.props.showDescription && product?.description ? (
+								<EditableTextarea
+									blockId={block.id}
+									path="product.description"
+									className={`mt-6 max-w-2xl text-base leading-8 ${cx.mutedText}`}
+								/>
+							) : null}
+						</>
+					)}
 				</div>
 			</div>
 		</section>

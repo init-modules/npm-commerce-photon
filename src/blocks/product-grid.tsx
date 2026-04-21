@@ -1,9 +1,9 @@
 "use client";
 
 import {
+	type CommerceCatalogItemView,
 	createCommerceClient,
 	getCommerceRequest,
-	type CommerceCatalogItemView,
 } from "@init-modules/commerce";
 import { useCommerceCartStore } from "@init-modules/commerce/client";
 import { Counter } from "@init-modules/ui";
@@ -15,18 +15,18 @@ import {
 	useWebsiteBuilder,
 	useWebsiteBuilderI18n,
 	useWebsiteBuilderValueAtPath,
-	WebsiteBuilderLink,
 	type WebsiteBuilderBlockComponentProps,
 	type WebsiteBuilderBlockDefinition,
+	WebsiteBuilderLink,
 } from "@init-modules/website-builder/public";
 import debounce from "lodash-es/debounce";
 import {
+	type CSSProperties,
 	useCallback,
 	useEffect,
 	useMemo,
 	useRef,
 	useState,
-	type CSSProperties,
 } from "react";
 import {
 	commerceBlockClassNames as cx,
@@ -96,10 +96,7 @@ const CommerceProductGrid = ({
 		block.props.addToCartLabel ||
 		(contentLocale === "ru" ? "В корзину" : "Add to cart");
 	const itemIds = items.map((item) => item.id).join("|");
-	const client = useMemo(
-		() => createCommerceClient(getCommerceRequest()),
-		[],
-	);
+	const client = useMemo(() => createCommerceClient(getCommerceRequest()), []);
 	const cart = useCommerceCartStore((state) => state.cart);
 	const setCart = useCommerceCartStore((state) => state.setCart);
 	const [cartLines, setCartLines] = useState<
@@ -225,12 +222,9 @@ const CommerceProductGrid = ({
 
 	const syncItemQuantity = useMemo(
 		() =>
-			debounce(
-				(item: CommerceCatalogItemView, nextQuantity: number) => {
-					void syncItemQuantityNow(item, nextQuantity);
-				},
-				350,
-			),
+			debounce((item: CommerceCatalogItemView, nextQuantity: number) => {
+				void syncItemQuantityNow(item, nextQuantity);
+			}, 350),
 		[syncItemQuantityNow],
 	);
 
@@ -315,12 +309,14 @@ const CommerceProductGrid = ({
 							const itemHref = item.href ?? `/catalog/${item.slug}`;
 
 							return (
-								<article key={item.id} className="group w-full max-w-[18rem] min-w-0 xl:max-w-none">
-									<WebsiteBuilderLink
-										href={itemHref}
-										className="block min-w-0"
-									>
-										<div className={`relative aspect-[4/3] overflow-hidden rounded-md ${cx.mutedSurface}`}>
+								<article
+									key={item.id}
+									className="group w-full max-w-[18rem] min-w-0 xl:max-w-none"
+								>
+									<WebsiteBuilderLink href={itemHref} className="block min-w-0">
+										<div
+											className={`relative aspect-[4/3] overflow-hidden rounded-md ${cx.mutedSurface}`}
+										>
 											{item.coverImage ? (
 												<img
 													src={item.coverImage}
@@ -329,7 +325,9 @@ const CommerceProductGrid = ({
 												/>
 											) : (
 												<div className="flex h-full w-full items-center justify-center bg-[color-mix(in_oklab,var(--wb-site-surface)_70%,var(--wb-site-accent))] p-6 text-center">
-													<div className={`max-w-[12rem] text-xs font-semibold uppercase tracking-[0.2em] ${cx.mutedText}`}>
+													<div
+														className={`max-w-[12rem] text-xs font-semibold uppercase tracking-[0.2em] ${cx.mutedText}`}
+													>
 														{item.sku ?? item.name}
 													</div>
 												</div>
@@ -337,7 +335,9 @@ const CommerceProductGrid = ({
 										</div>
 									</WebsiteBuilderLink>
 									<div className="mt-5">
-										<div className={`text-xl font-semibold tracking-tight ${cx.strongText}`}>
+										<div
+											className={`text-xl font-semibold tracking-tight ${cx.strongText}`}
+										>
 											{formatCommerceMoney(
 												item.publicPriceAmount,
 												item.currency,
@@ -361,7 +361,9 @@ const CommerceProductGrid = ({
 												className={`mt-2 line-clamp-2 text-sm leading-6 ${cx.mutedText}`}
 											/>
 										) : null}
-										<div className={`mt-3 flex items-center gap-3 text-sm ${cx.mutedText}`}>
+										<div
+											className={`mt-3 flex items-center gap-3 text-sm ${cx.mutedText}`}
+										>
 											<span>☆ 0.0</span>
 											<span className="inline-flex items-center gap-1 text-[var(--wb-site-accent)]">
 												<span aria-hidden="true">⊙</span>

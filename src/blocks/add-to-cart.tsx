@@ -11,9 +11,9 @@ import {
 	defineWebsiteBuilderBlockDefinition,
 	useWebsiteBuilder,
 	useWebsiteBuilderValueAtPath,
-	WebsiteBuilderLink,
 	type WebsiteBuilderBlockComponentProps,
 	type WebsiteBuilderBlockDefinition,
+	WebsiteBuilderLink,
 } from "@init-modules/website-builder/public";
 import debounce from "lodash-es/debounce";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -69,15 +69,10 @@ const CommerceAddToCart = ({
 		id: string;
 		quantity: number;
 	}>(() => resolveCartLine(cart, product));
-	const [status, setStatus] = useState<
-		"idle" | "loading" | "error"
-	>("idle");
+	const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
 	const cartLineRef = useRef(cartLine);
 	const desiredQuantityRef = useRef<number | null>(null);
-	const client = useMemo(
-		() => createCommerceClient(getCommerceRequest()),
-		[],
-	);
+	const client = useMemo(() => createCommerceClient(getCommerceRequest()), []);
 	const interactive = mode === "preview";
 	const disabled = !interactive || !product;
 	const loadingLabel = block.props.buttonLabel;
@@ -134,72 +129,71 @@ const CommerceAddToCart = ({
 		};
 	}, [cart, client, interactive, product, productId, setCart]);
 
-	const syncQuantityNow = useCallback(async (nextQuantity: number) => {
-		if (!product || disabled) {
-			return;
-		}
+	const syncQuantityNow = useCallback(
+		async (nextQuantity: number) => {
+			if (!product || disabled) {
+				return;
+			}
 
-		setStatus("loading");
+			setStatus("loading");
 
-		try {
-			if (nextQuantity <= 0) {
-				if (cartLineRef.current?.id) {
-					const response = await client.removeCartItem(cartLineRef.current.id);
+			try {
+				if (nextQuantity <= 0) {
+					if (cartLineRef.current?.id) {
+						const response = await client.removeCartItem(
+							cartLineRef.current.id,
+						);
+						if (desiredQuantityRef.current !== nextQuantity) {
+							return;
+						}
+						const line = findCommerceCartItem(response.data, product);
+						setCart(response.data);
+						emitCommerceCartUpdated(response.data);
+						setCartLine(line ? { id: line.id, quantity: line.quantity } : null);
+					} else {
+						if (desiredQuantityRef.current !== nextQuantity) {
+							return;
+						}
+						setCartLine(null);
+					}
+				} else if (cartLineRef.current?.id) {
+					const response = await client.updateCartItem(cartLineRef.current.id, {
+						quantity: nextQuantity,
+					});
 					if (desiredQuantityRef.current !== nextQuantity) {
 						return;
 					}
 					const line = findCommerceCartItem(response.data, product);
 					setCart(response.data);
 					emitCommerceCartUpdated(response.data);
-					setCartLine(
-						line ? { id: line.id, quantity: line.quantity } : null,
-					);
+					setCartLine(line ? { id: line.id, quantity: line.quantity } : null);
 				} else {
+					const response = await client.addCartItem({
+						catalogItemId: product.id,
+						quantity: nextQuantity,
+						replace: true,
+					});
 					if (desiredQuantityRef.current !== nextQuantity) {
 						return;
 					}
-					setCartLine(null);
+					const line = findCommerceCartItem(response.data, product);
+					setCart(response.data);
+					emitCommerceCartUpdated(response.data);
+					setCartLine(line ? { id: line.id, quantity: line.quantity } : null);
 				}
-			} else if (cartLineRef.current?.id) {
-				const response = await client.updateCartItem(cartLineRef.current.id, {
-					quantity: nextQuantity,
-				});
+
+				desiredQuantityRef.current = null;
+				setStatus("idle");
+			} catch {
 				if (desiredQuantityRef.current !== nextQuantity) {
 					return;
 				}
-				const line = findCommerceCartItem(response.data, product);
-				setCart(response.data);
-				emitCommerceCartUpdated(response.data);
-				setCartLine(
-					line ? { id: line.id, quantity: line.quantity } : null,
-				);
-			} else {
-				const response = await client.addCartItem({
-					catalogItemId: product.id,
-					quantity: nextQuantity,
-					replace: true,
-				});
-				if (desiredQuantityRef.current !== nextQuantity) {
-					return;
-				}
-				const line = findCommerceCartItem(response.data, product);
-				setCart(response.data);
-				emitCommerceCartUpdated(response.data);
-				setCartLine(
-					line ? { id: line.id, quantity: line.quantity } : null,
-				);
-			}
 
-			desiredQuantityRef.current = null;
-			setStatus("idle");
-		} catch {
-			if (desiredQuantityRef.current !== nextQuantity) {
-				return;
+				setStatus("error");
 			}
-
-			setStatus("error");
-		}
-	}, [client, disabled, product, setCart]);
+		},
+		[client, disabled, product, setCart],
+	);
 
 	const syncQuantity = useMemo(
 		() =>

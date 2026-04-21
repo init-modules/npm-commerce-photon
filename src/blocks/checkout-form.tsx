@@ -13,8 +13,8 @@ import {
 	BreadcrumbPage,
 	BreadcrumbSeparator,
 	Counter,
-	Steps,
 	type StepItem,
+	Steps,
 } from "@init-modules/ui";
 import {
 	createWebsiteBuilderFormFieldsField,
@@ -29,26 +29,26 @@ import {
 	EditableTextarea,
 	useWebsiteBuilder,
 	useWebsiteBuilderI18n,
-	WebsiteBuilderLink,
 	type WebsiteBuilderBlockComponentProps,
 	type WebsiteBuilderBlockDefinition,
+	WebsiteBuilderLink,
 } from "@init-modules/website-builder/public";
 import debounce from "lodash-es/debounce";
 import { X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 import {
+	type CommerceCheckoutStepKey,
+	commerceCheckoutStepKeys,
+	resolveCommerceCheckoutStep,
+	toCommerceCheckoutStepKey,
+} from "./checkout-step";
+import { CommerceCheckoutSummary } from "./checkout-summary";
+import {
 	commerceBlockClassNames as cx,
 	emitCommerceCartUpdated,
 	formatCommerceMoney,
 } from "./shared";
-import {
-	commerceCheckoutStepKeys,
-	resolveCommerceCheckoutStep,
-	toCommerceCheckoutStepKey,
-	type CommerceCheckoutStepKey,
-} from "./checkout-step";
-import { CommerceCheckoutSummary } from "./checkout-summary";
 
 type CommerceCheckoutFormProps = {
 	eyebrow: string;
@@ -90,37 +90,37 @@ type CommerceCheckoutFormProps = {
 };
 
 const checkoutDefaultFields: WebsiteBuilderFormFieldDefinition[] = [
-		{
-			id: "name",
-			name: "name",
-			type: "text",
-			label: "Name",
-			required: true,
-			width: "full",
-			locked: true,
-			removable: false,
-		},
-		{
-			id: "email",
-			name: "email",
-			type: "email",
-			label: "Email",
-			required: true,
-			width: "full",
-			locked: true,
-			removable: false,
-		},
-		{
-			id: "phone",
-			name: "phone",
-			type: "phone",
-			label: "Phone",
-			required: true,
-			width: "full",
-			locked: true,
-			removable: false,
-		},
-	];
+	{
+		id: "name",
+		name: "name",
+		type: "text",
+		label: "Name",
+		required: true,
+		width: "full",
+		locked: true,
+		removable: false,
+	},
+	{
+		id: "email",
+		name: "email",
+		type: "email",
+		label: "Email",
+		required: true,
+		width: "full",
+		locked: true,
+		removable: false,
+	},
+	{
+		id: "phone",
+		name: "phone",
+		type: "phone",
+		label: "Phone",
+		required: true,
+		width: "full",
+		locked: true,
+		removable: false,
+	},
+];
 
 const checkoutFormDefinition = defineWebsiteBuilderForm({
 	id: "commerce.checkout",
@@ -227,10 +227,7 @@ const CommerceCheckoutForm = ({
 		cart ? "idle" : "loading",
 	);
 	const desiredItemQuantitiesRef = useRef(new Map<string, number>());
-	const client = useMemo(
-		() => createCommerceClient(getCommerceRequest()),
-		[],
-	);
+	const client = useMemo(() => createCommerceClient(getCommerceRequest()), []);
 	const writeCheckoutStep = useCallback(
 		(nextIndex: number, method: "push" | "replace") => {
 			const boundedIndex = Math.max(
@@ -540,9 +537,7 @@ const CommerceCheckoutForm = ({
 					className="grid gap-4 border-b border-[color:var(--wb-site-border)] p-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto]"
 				>
 					<div className="min-w-0">
-						<div className={`font-semibold ${cx.strongText}`}>
-							{item.name}
-						</div>
+						<div className={`font-semibold ${cx.strongText}`}>{item.name}</div>
 						<div className={`mt-1 text-sm ${cx.mutedText}`}>
 							{formatCommerceMoney(
 								item.unit_price,
@@ -556,10 +551,7 @@ const CommerceCheckoutForm = ({
 								min={0}
 								valueLabel={item.name ?? "Quantity"}
 								onValueChange={(nextQuantity) => {
-									const nextCart = applyItemQuantity(
-										item.id,
-										nextQuantity,
-									);
+									const nextCart = applyItemQuantity(item.id, nextQuantity);
 
 									if (nextCart) {
 										emitCommerceCartUpdated(nextCart);
@@ -583,46 +575,50 @@ const CommerceCheckoutForm = ({
 						</div>
 					</div>
 					<div className={`font-semibold ${cx.strongText}`}>
-								{formatCommerceMoney(
-									item.line_total,
-									cart?.currency ?? "KZT",
-									contentLocale,
-								)}
+						{formatCommerceMoney(
+							item.line_total,
+							cart?.currency ?? "KZT",
+							contentLocale,
+						)}
 					</div>
 				</div>
 			))}
-			<div className={`flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between ${cx.mutedSurface}`}>
-						<div>
-							<EditableText
-								blockId={block.id}
-								path="summaryTotalLabel"
-								placeholder={getFallbackText("summaryTotalLabel")}
-								className={`block text-sm ${cx.mutedText}`}
-							/>
-							<div className="text-2xl font-semibold">
-								{formatCommerceMoney(
-									cart?.total_amount,
-									cart?.currency ?? "KZT",
-									contentLocale,
-								)}
-							</div>
-						</div>
-						<button
-							type="button"
-							onClick={() => pushCheckoutStep(1)}
-							className={cx.primaryButton}
-						>
-							<EditableText
-								blockId={block.id}
-								path="cartCheckoutLabel"
-								placeholder={getFallbackText("cartCheckoutLabel")}
-								className="font-semibold"
-							/>
-						</button>
+			<div
+				className={`flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between ${cx.mutedSurface}`}
+			>
+				<div>
+					<EditableText
+						blockId={block.id}
+						path="summaryTotalLabel"
+						placeholder={getFallbackText("summaryTotalLabel")}
+						className={`block text-sm ${cx.mutedText}`}
+					/>
+					<div className="text-2xl font-semibold">
+						{formatCommerceMoney(
+							cart?.total_amount,
+							cart?.currency ?? "KZT",
+							contentLocale,
+						)}
+					</div>
+				</div>
+				<button
+					type="button"
+					onClick={() => pushCheckoutStep(1)}
+					className={cx.primaryButton}
+				>
+					<EditableText
+						blockId={block.id}
+						path="cartCheckoutLabel"
+						placeholder={getFallbackText("cartCheckoutLabel")}
+						className="font-semibold"
+					/>
+				</button>
 			</div>
 		</div>
 	) : (
-		<div className={`mt-8 rounded-lg bg-[color-mix(in_oklab,var(--wb-site-surface)_58%,var(--wb-site-background))] px-6 py-10 text-center`}>
+		<div
+			className={`mt-8 rounded-lg bg-[color-mix(in_oklab,var(--wb-site-surface)_58%,var(--wb-site-background))] px-6 py-10 text-center`}
+		>
 			<EditableText
 				blockId={block.id}
 				path="cartEmptyTitle"
@@ -677,7 +673,10 @@ const CommerceCheckoutForm = ({
 										return;
 									}
 
-									if ((nextStep > 0 && !hasItems) || (nextStep === 2 && !order)) {
+									if (
+										(nextStep > 0 && !hasItems) ||
+										(nextStep === 2 && !order)
+									) {
 										return;
 									}
 
@@ -686,258 +685,272 @@ const CommerceCheckoutForm = ({
 							: undefined
 					}
 				/>
-				<div className={isCartStep || isDoneStep ? "" : "grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]"}>
+				<div
+					className={
+						isCartStep || isDoneStep
+							? ""
+							: "grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]"
+					}
+				>
 					<div>
-					{isCartStep ? (
-						<>
-							<EditableText
-								blockId={block.id}
-								path="cartEyebrow"
-								placeholder={getFallbackText("cartEyebrow")}
-								className={cx.eyebrow}
-							/>
-							<EditableText
-								blockId={block.id}
-								path="cartTitle"
-								placeholder={getFallbackText("cartTitle")}
-								as="h1"
-								className="mt-3 block text-3xl font-semibold leading-tight sm:text-5xl"
-							/>
-						</>
-					) : isDoneStep ? (
-						<>
-							<EditableText
-								blockId={block.id}
-								path="eyebrow"
-								className={cx.eyebrow}
-							/>
-							<EditableText
-								blockId={block.id}
-								path="successTitle"
-								placeholder={getFallbackText("successTitle")}
-								as="h1"
-								className="mt-3 block text-3xl font-semibold leading-tight sm:text-5xl"
-							/>
-						</>
-					) : (
-						<>
-							<EditableText
-								blockId={block.id}
-								path="eyebrow"
-								className={cx.eyebrow}
-							/>
-							<EditableText
-								blockId={block.id}
-								path="title"
-								as="h1"
-								className="mt-3 block text-3xl font-semibold leading-tight sm:text-5xl"
-							/>
-						</>
-					)}
-					{!isCartStep && !isDoneStep ? (
-						<EditableTextarea
-							blockId={block.id}
-							path="body"
-							className={`mt-4 max-w-2xl text-base leading-8 ${cx.mutedText}`}
-						/>
-					) : null}
-
-					{order ? (
-						<div className="mt-8 grid gap-6">
-							<div className={`p-5 ${cx.successPanel}`}>
-								<EditableTextarea
+						{isCartStep ? (
+							<>
+								<EditableText
 									blockId={block.id}
-									path="successBody"
-									placeholder={getFallbackText("successBody")}
-									className={`max-w-2xl text-base leading-7 ${cx.mutedText}`}
+									path="cartEyebrow"
+									placeholder={getFallbackText("cartEyebrow")}
+									className={cx.eyebrow}
 								/>
-								<div className="mt-5">
-									<WebsiteBuilderLink
-										href={accountOrdersHref}
-										className={cx.primaryButton}
-									>
+								<EditableText
+									blockId={block.id}
+									path="cartTitle"
+									placeholder={getFallbackText("cartTitle")}
+									as="h1"
+									className="mt-3 block text-3xl font-semibold leading-tight sm:text-5xl"
+								/>
+							</>
+						) : isDoneStep ? (
+							<>
+								<EditableText
+									blockId={block.id}
+									path="eyebrow"
+									className={cx.eyebrow}
+								/>
+								<EditableText
+									blockId={block.id}
+									path="successTitle"
+									placeholder={getFallbackText("successTitle")}
+									as="h1"
+									className="mt-3 block text-3xl font-semibold leading-tight sm:text-5xl"
+								/>
+							</>
+						) : (
+							<>
+								<EditableText
+									blockId={block.id}
+									path="eyebrow"
+									className={cx.eyebrow}
+								/>
+								<EditableText
+									blockId={block.id}
+									path="title"
+									as="h1"
+									className="mt-3 block text-3xl font-semibold leading-tight sm:text-5xl"
+								/>
+							</>
+						)}
+						{!isCartStep && !isDoneStep ? (
+							<EditableTextarea
+								blockId={block.id}
+								path="body"
+								className={`mt-4 max-w-2xl text-base leading-8 ${cx.mutedText}`}
+							/>
+						) : null}
+
+						{order ? (
+							<div className="mt-8 grid gap-6">
+								<div className={`p-5 ${cx.successPanel}`}>
+									<EditableTextarea
+										blockId={block.id}
+										path="successBody"
+										placeholder={getFallbackText("successBody")}
+										className={`max-w-2xl text-base leading-7 ${cx.mutedText}`}
+									/>
+									<div className="mt-5">
+										<WebsiteBuilderLink
+											href={accountOrdersHref}
+											className={cx.primaryButton}
+										>
+											<EditableText
+												blockId={block.id}
+												path="trackOrderLabel"
+												placeholder={getFallbackText("trackOrderLabel")}
+												className="font-semibold"
+											/>
+										</WebsiteBuilderLink>
+									</div>
+								</div>
+								<div className={`overflow-hidden ${cx.surface}`}>
+									<div className="border-b border-[color:var(--wb-site-border)] p-5">
 										<EditableText
 											blockId={block.id}
-											path="trackOrderLabel"
-											placeholder={getFallbackText("trackOrderLabel")}
-											className="font-semibold"
+											path="orderDetailsTitle"
+											placeholder={getFallbackText("orderDetailsTitle")}
+											className={`text-lg font-semibold ${cx.strongText}`}
 										/>
-									</WebsiteBuilderLink>
-								</div>
-							</div>
-							<div className={`overflow-hidden ${cx.surface}`}>
-								<div className="border-b border-[color:var(--wb-site-border)] p-5">
-									<EditableText
-										blockId={block.id}
-										path="orderDetailsTitle"
-										placeholder={getFallbackText("orderDetailsTitle")}
-										className={`text-lg font-semibold ${cx.strongText}`}
-									/>
-									<dl className="mt-5 grid gap-3 text-sm">
-										<div className="flex w-full items-start justify-between gap-6">
-											<dt className={cx.mutedText}>
-												<EditableText
-													blockId={block.id}
-													path="orderNumberLabel"
-													placeholder={getFallbackText("orderNumberLabel")}
-												/>
-											</dt>
-											<dd className={`max-w-[65%] text-right font-semibold ${cx.strongText}`}>
-												{order.number}
-											</dd>
-										</div>
-										<div className="flex w-full items-start justify-between gap-6">
-											<dt className={cx.mutedText}>
-												<EditableText
-													blockId={block.id}
-													path="orderStatusLabel"
-													placeholder={getFallbackText("orderStatusLabel")}
-												/>
-											</dt>
-											<dd className={`max-w-[65%] text-right font-semibold ${cx.strongText}`}>
-												{order.status ?? getFallbackText("doneStepTitle")}
-											</dd>
-										</div>
-										<div className="flex w-full items-start justify-between gap-6">
-											<dt className={cx.mutedText}>
-												<EditableText
-													blockId={block.id}
-													path="orderTotalLabel"
-													placeholder={getFallbackText("orderTotalLabel")}
-												/>
-											</dt>
-											<dd className={`max-w-[65%] text-right font-semibold ${cx.strongText}`}>
-												{formatCommerceMoney(
-													order.total_amount,
-													order.currency,
-													contentLocale,
-												)}
-											</dd>
-										</div>
-									</dl>
-								</div>
-								<div className="divide-y divide-[color:var(--wb-site-border)]">
-									{order.items.map((item) => (
-										<div
-											key={item.id}
-											className="flex flex-col gap-3 p-5 sm:flex-row sm:items-start sm:justify-between"
-										>
-											<div className="min-w-0">
-												<div className={`font-semibold ${cx.strongText}`}>
-													{item.name}
-												</div>
-												<div className={`mt-1 text-sm ${cx.mutedText}`}>
-													{item.quantity} x{" "}
+										<dl className="mt-5 grid gap-3 text-sm">
+											<div className="flex w-full items-start justify-between gap-6">
+												<dt className={cx.mutedText}>
+													<EditableText
+														blockId={block.id}
+														path="orderNumberLabel"
+														placeholder={getFallbackText("orderNumberLabel")}
+													/>
+												</dt>
+												<dd
+													className={`max-w-[65%] text-right font-semibold ${cx.strongText}`}
+												>
+													{order.number}
+												</dd>
+											</div>
+											<div className="flex w-full items-start justify-between gap-6">
+												<dt className={cx.mutedText}>
+													<EditableText
+														blockId={block.id}
+														path="orderStatusLabel"
+														placeholder={getFallbackText("orderStatusLabel")}
+													/>
+												</dt>
+												<dd
+													className={`max-w-[65%] text-right font-semibold ${cx.strongText}`}
+												>
+													{order.status ?? getFallbackText("doneStepTitle")}
+												</dd>
+											</div>
+											<div className="flex w-full items-start justify-between gap-6">
+												<dt className={cx.mutedText}>
+													<EditableText
+														blockId={block.id}
+														path="orderTotalLabel"
+														placeholder={getFallbackText("orderTotalLabel")}
+													/>
+												</dt>
+												<dd
+													className={`max-w-[65%] text-right font-semibold ${cx.strongText}`}
+												>
 													{formatCommerceMoney(
-														item.unit_price,
+														order.total_amount,
+														order.currency,
+														contentLocale,
+													)}
+												</dd>
+											</div>
+										</dl>
+									</div>
+									<div className="divide-y divide-[color:var(--wb-site-border)]">
+										{order.items.map((item) => (
+											<div
+												key={item.id}
+												className="flex flex-col gap-3 p-5 sm:flex-row sm:items-start sm:justify-between"
+											>
+												<div className="min-w-0">
+													<div className={`font-semibold ${cx.strongText}`}>
+														{item.name}
+													</div>
+													<div className={`mt-1 text-sm ${cx.mutedText}`}>
+														{item.quantity} x{" "}
+														{formatCommerceMoney(
+															item.unit_price,
+															order.currency,
+															contentLocale,
+														)}
+													</div>
+												</div>
+												<div
+													className={`shrink-0 text-right font-semibold ${cx.strongText}`}
+												>
+													{formatCommerceMoney(
+														item.line_total,
 														order.currency,
 														contentLocale,
 													)}
 												</div>
 											</div>
-											<div className={`shrink-0 text-right font-semibold ${cx.strongText}`}>
-												{formatCommerceMoney(
-													item.line_total,
-													order.currency,
-													contentLocale,
-												)}
-											</div>
-										</div>
-									))}
+										))}
+									</div>
 								</div>
 							</div>
-						</div>
-					) : isCartStep ? (
-						cartList
-					) : (
-						<WebsiteBuilderForm
-							blockId={block.id}
-							fieldsPath="fields"
-							definition={checkoutFormDefinition}
-							fields={checkoutFields}
-							disabled={mode !== "preview" || status === "saving"}
-							className="mt-8"
-							classNames={{
-								field: `grid gap-2 text-sm font-medium ${cx.mutedText}`,
-								label: "font-medium",
-								input: cx.input,
-								helpText: `mt-1 text-xs leading-5 ${cx.mutedText}`,
-								checkboxField: `flex items-center gap-3 text-sm font-medium ${cx.mutedText}`,
-							}}
-							onSubmitValues={async (values) => {
-								if (mode !== "preview") {
-									return;
-								}
-
-								if (!isAuthenticated) {
-									requestAuth?.();
-									return;
-								}
-
-								setStatus("saving");
-
-								try {
-									let checkoutCart = cart;
-
-									if (
-										authResource?.user &&
-										checkoutCart &&
-										!checkoutCart.actor?.authenticated
-									) {
-										const syncResponse = await client.syncCurrentCart();
-										checkoutCart = syncResponse.data;
-										setCart(checkoutCart);
-										emitCommerceCartUpdated(checkoutCart);
+						) : isCartStep ? (
+							cartList
+						) : (
+							<WebsiteBuilderForm
+								blockId={block.id}
+								fieldsPath="fields"
+								definition={checkoutFormDefinition}
+								fields={checkoutFields}
+								disabled={mode !== "preview" || status === "saving"}
+								className="mt-8"
+								classNames={{
+									field: `grid gap-2 text-sm font-medium ${cx.mutedText}`,
+									label: "font-medium",
+									input: cx.input,
+									helpText: `mt-1 text-xs leading-5 ${cx.mutedText}`,
+									checkboxField: `flex items-center gap-3 text-sm font-medium ${cx.mutedText}`,
+								}}
+								onSubmitValues={async (values) => {
+									if (mode !== "preview") {
+										return;
 									}
 
-									if (!checkoutCart || checkoutCart.items.length === 0) {
-										throw new Error("Cannot place an order from an empty cart.");
+									if (!isAuthenticated) {
+										requestAuth?.();
+										return;
 									}
 
-									const response = await client.checkout({
-										cartId: checkoutCart.id,
-										customerSnapshot: values,
-									});
-									setOrder(response.data);
-									setCart(null);
-									emitCommerceCartUpdated(null);
-									setStatus("idle");
-									pushCheckoutStep(2);
-								} catch {
-									setStatus("error");
-								}
-							}}
-						>
-							<button
-								type="submit"
-								disabled={
-									status === "saving" ||
-									!cart ||
-									cart.items.length === 0
-								}
-								className={`mt-2 sm:col-span-12 ${cx.primaryButton}`}
+									setStatus("saving");
+
+									try {
+										let checkoutCart = cart;
+
+										if (
+											authResource?.user &&
+											checkoutCart &&
+											!checkoutCart.actor?.authenticated
+										) {
+											const syncResponse = await client.syncCurrentCart();
+											checkoutCart = syncResponse.data;
+											setCart(checkoutCart);
+											emitCommerceCartUpdated(checkoutCart);
+										}
+
+										if (!checkoutCart || checkoutCart.items.length === 0) {
+											throw new Error(
+												"Cannot place an order from an empty cart.",
+											);
+										}
+
+										const response = await client.checkout({
+											cartId: checkoutCart.id,
+											customerSnapshot: values,
+										});
+										setOrder(response.data);
+										setCart(null);
+										emitCommerceCartUpdated(null);
+										setStatus("idle");
+										pushCheckoutStep(2);
+									} catch {
+										setStatus("error");
+									}
+								}}
 							>
-								<EditableText
-									blockId={block.id}
-									path={status === "saving" ? "savingLabel" : "submitLabel"}
-									placeholder={
-										status === "saving"
-											? getFallbackText("savingLabel")
-											: getFallbackText("submitLabel")
+								<button
+									type="submit"
+									disabled={
+										status === "saving" || !cart || cart.items.length === 0
 									}
-									className="font-semibold"
-								/>
-							</button>
-							{status === "error" ? (
-								<EditableText
-									blockId={block.id}
-									path="errorLabel"
-									placeholder={getFallbackText("errorLabel")}
-									className={`text-sm sm:col-span-12 ${cx.errorText}`}
-								/>
-							) : null}
-						</WebsiteBuilderForm>
-					)}
+									className={`mt-2 sm:col-span-12 ${cx.primaryButton}`}
+								>
+									<EditableText
+										blockId={block.id}
+										path={status === "saving" ? "savingLabel" : "submitLabel"}
+										placeholder={
+											status === "saving"
+												? getFallbackText("savingLabel")
+												: getFallbackText("submitLabel")
+										}
+										className="font-semibold"
+									/>
+								</button>
+								{status === "error" ? (
+									<EditableText
+										blockId={block.id}
+										path="errorLabel"
+										placeholder={getFallbackText("errorLabel")}
+										className={`text-sm sm:col-span-12 ${cx.errorText}`}
+									/>
+								) : null}
+							</WebsiteBuilderForm>
+						)}
 					</div>
 
 					{isCartStep || isDoneStep ? null : (

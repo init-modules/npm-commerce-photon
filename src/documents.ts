@@ -168,7 +168,11 @@ const createAccountShellBlock = (
 			"Review profile details and open package-provided workspace tabs.",
 			"Проверьте данные профиля и откройте вкладки, которые предоставляют пакеты.",
 		),
-		signedOutTitle: copy(locale, "Sign in to continue", "Войдите, чтобы продолжить"),
+		signedOutTitle: copy(
+			locale,
+			"Sign in to continue",
+			"Войдите, чтобы продолжить",
+		),
 		signedOutBody: copy(
 			locale,
 			"Your account page is available after authentication.",
@@ -407,8 +411,14 @@ const createSiteRegionDocument = (
 							sticky: true,
 							compactOnScroll: true,
 							categoryLinks: [
-								{ label: copy(locale, "Products", "Товары"), href: "/products" },
-								{ label: copy(locale, "Services", "Услуги"), href: "/services" },
+								{
+									label: copy(locale, "Products", "Товары"),
+									href: "/products",
+								},
+								{
+									label: copy(locale, "Services", "Услуги"),
+									href: "/services",
+								},
 							],
 						},
 					},

@@ -1,12 +1,12 @@
 import {
-	createWebsiteBuilderAccountTabExtension,
-	createWebsiteBuilderSiteFrameExtension,
-	type WebsiteBuilderAccountTabExtension,
-	type WebsiteBuilderSiteFrameExtension,
-} from "@init-modules/website-builder/public";
+	createPhotonAccountTabExtension,
+	createPhotonSiteFrameExtension,
+	type PhotonAccountTabExtension,
+	type PhotonSiteFrameExtension,
+} from "@init/photon/public";
 
-export const commerceWebsiteBuilderSiteFrameExtension: WebsiteBuilderSiteFrameExtension =
-	createWebsiteBuilderSiteFrameExtension({
+export const commercePhotonSiteFrameExtension: PhotonSiteFrameExtension =
+	createPhotonSiteFrameExtension({
 		id: "commerce",
 		label: "Commerce",
 		order: 20,
@@ -53,8 +53,8 @@ export const commerceWebsiteBuilderSiteFrameExtension: WebsiteBuilderSiteFrameEx
 		},
 	});
 
-export const commerceOrdersAccountTab: WebsiteBuilderAccountTabExtension =
-	createWebsiteBuilderAccountTabExtension({
+export const commerceOrdersAccountTab: PhotonAccountTabExtension =
+	createPhotonAccountTabExtension({
 		id: "commerce:orders",
 		label: "Orders",
 		href: "/account/orders",

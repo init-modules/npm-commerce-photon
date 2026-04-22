@@ -2,24 +2,24 @@ import type {
 	CommerceCart,
 	CommerceCatalogItem,
 	CommerceCatalogItemView,
-} from "@init-modules/commerce";
+} from "@init/commerce";
 import {
 	commerceCartSnapshotKey,
 	configureCommerceRequest,
 	createAxiosCommerceRequest,
-} from "@init-modules/commerce";
+} from "@init/commerce";
 import {
 	createNextDataSnapshot,
 	defineNextDataServerResource,
-} from "@init-modules/next-data-flow/server";
+} from "@init/next-data-flow/server";
 import type {
-	WebsiteBuilderDocument,
-	WebsiteBuilderResources,
-	WebsiteBuilderSearchResult,
-} from "@init-modules/website-builder";
+	PhotonDocument,
+	PhotonResources,
+	PhotonSearchResult,
+} from "@init/photon";
 import { cache } from "react";
 
-type CommerceWebsiteBuilderApiClient = {
+type CommercePhotonApiClient = {
 	request<T = unknown>(config: {
 		url: string;
 		method?: "DELETE" | "GET" | "PATCH" | "POST";
@@ -30,14 +30,14 @@ type CommerceWebsiteBuilderApiClient = {
 	}): Promise<{ data: T; status: number }>;
 };
 
-let commerceWebsiteBuilderApi: CommerceWebsiteBuilderApiClient | null = null;
+let commercePhotonApi: CommercePhotonApiClient | null = null;
 
-const getCommerceWebsiteBuilderApi = () => {
-	if (!commerceWebsiteBuilderApi) {
-		throw new Error("Commerce Website Builder API client is not configured");
+const getCommercePhotonApi = () => {
+	if (!commercePhotonApi) {
+		throw new Error("Commerce Photon API client is not configured");
 	}
 
-	return commerceWebsiteBuilderApi;
+	return commercePhotonApi;
 };
 
 const getCommerceApiResponse = <T>(
@@ -47,27 +47,27 @@ const getCommerceApiResponse = <T>(
 		validateStatus?: () => boolean;
 	} = {},
 ) =>
-	getCommerceWebsiteBuilderApi().request<T>({
+	getCommercePhotonApi().request<T>({
 		url,
 		method: "GET",
 		...config,
 	});
 
-export const configureCommerceWebsiteBuilderServer = (
-	api: CommerceWebsiteBuilderApiClient,
+export const configureCommercePhotonServer = (
+	api: CommercePhotonApiClient,
 ) => {
-	commerceWebsiteBuilderApi = api;
+	commercePhotonApi = api;
 	configureCommerceRequest(createAxiosCommerceRequest(api));
 };
 
 type CommerceStorefrontKind = "hybrid" | "products" | "services";
 
 type CommerceResolvedPage = {
-	document: WebsiteBuilderDocument;
+	document: PhotonDocument;
 	page: {
 		route: string;
 	};
-	resources: WebsiteBuilderResources;
+	resources: PhotonResources;
 };
 
 class CommerceCatalogItemNotFoundError extends Error {
@@ -84,17 +84,17 @@ const isCommerceCatalogItemNotFoundError = (
 ): error is CommerceCatalogItemNotFoundError =>
 	error instanceof CommerceCatalogItemNotFoundError;
 
-const hasCommerceBinding = (document: WebsiteBuilderDocument) =>
+const hasCommerceBinding = (document: PhotonDocument) =>
 	document.blocks.some(
 		(block) =>
-			block.module === "commerce-website-builder" ||
+			block.module === "commerce-photon" ||
 			Object.values(block.bindings ?? {}).some((binding) =>
 				binding.source.startsWith("commerce"),
 			),
 	);
 
 const resolveCommerceStorefrontKind = (
-	document: WebsiteBuilderDocument,
+	document: PhotonDocument,
 ): CommerceStorefrontKind => {
 	const source = [
 		document.id,
@@ -275,7 +275,7 @@ const getCommerceCatalogItem = cache(async (slug: string) => {
 export const searchCommerceCatalogItems = async (
 	query: string,
 	limit = 8,
-): Promise<WebsiteBuilderSearchResult[]> => {
+): Promise<PhotonSearchResult[]> => {
 	const normalizedQuery = query.trim();
 
 	if (normalizedQuery.length < 2) {
@@ -324,7 +324,7 @@ export const withCommerceResources = async <TPage extends CommerceResolvedPage>(
 	requestPath: string,
 	page: TPage,
 ): Promise<TPage> => {
-	const nextResources: WebsiteBuilderResources = { ...page.resources };
+	const nextResources: PhotonResources = { ...page.resources };
 	const hasCommerceDocumentBinding = hasCommerceBinding(page.document);
 
 	if (hasCommerceDocumentBinding) {

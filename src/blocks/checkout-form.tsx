@@ -4,8 +4,8 @@ import {
 	type CommerceOrder,
 	createCommerceClient,
 	getCommerceRequest,
-} from "@init-modules/commerce";
-import { useCommerceCartStore } from "@init-modules/commerce/client";
+} from "@init/commerce";
+import { useCommerceCartStore } from "@init/commerce/client";
 import {
 	Breadcrumb,
 	BreadcrumbItem,
@@ -15,28 +15,28 @@ import {
 	Counter,
 	type StepItem,
 	Steps,
-} from "@init-modules/ui";
+} from "@init/ui";
 import {
-	createWebsiteBuilderFormFieldsField,
-	defineWebsiteBuilderForm,
-	WebsiteBuilderForm,
-	type WebsiteBuilderFormFieldDefinition,
-} from "@init-modules/website-builder/forms";
+	createPhotonFormFieldsField,
+	definePhotonForm,
+	PhotonForm,
+	type PhotonFormFieldDefinition,
+} from "@init/photon/forms";
 import {
-	createWebsiteBuilderLocalizedDefault,
-	defineWebsiteBuilderBlockDefinition,
+	createPhotonLocalizedDefault,
+	definePhotonBlockDefinition,
 	EditableText,
 	EditableTextarea,
-	useWebsiteBuilder,
-	useWebsiteBuilderI18n,
-	type WebsiteBuilderBlockComponentProps,
-	type WebsiteBuilderBlockDefinition,
-	WebsiteBuilderLink,
-} from "@init-modules/website-builder/public";
-import debounce from "lodash-es/debounce";
+	usePhoton,
+	usePhotonI18n,
+	type PhotonBlockComponentProps,
+	type PhotonBlockDefinition,
+	PhotonLink,
+} from "@init/photon/public";
 import { X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
+import { debounceCallback } from "../helpers/debounce";
 import {
 	type CommerceCheckoutStepKey,
 	commerceCheckoutStepKeys,
@@ -71,7 +71,7 @@ type CommerceCheckoutFormProps = {
 	summaryTotalLabel: string;
 	summaryEmptyBody: string;
 	summaryReturnLabel: string;
-	fields: WebsiteBuilderFormFieldDefinition[];
+	fields: PhotonFormFieldDefinition[];
 	nameLabel?: string;
 	emailLabel?: string;
 	phoneLabel?: string;
@@ -89,7 +89,7 @@ type CommerceCheckoutFormProps = {
 	accountOrdersHref: string;
 };
 
-const checkoutDefaultFields: WebsiteBuilderFormFieldDefinition[] = [
+const checkoutDefaultFields: PhotonFormFieldDefinition[] = [
 	{
 		id: "name",
 		name: "name",
@@ -122,7 +122,7 @@ const checkoutDefaultFields: WebsiteBuilderFormFieldDefinition[] = [
 	},
 ];
 
-const checkoutFormDefinition = defineWebsiteBuilderForm({
+const checkoutFormDefinition = definePhotonForm({
 	id: "commerce.checkout",
 	mode: "extendable",
 	defaultFields: checkoutDefaultFields,
@@ -147,7 +147,7 @@ const checkoutFormDefinition = defineWebsiteBuilderForm({
 	},
 });
 
-const checkoutFormFieldsField = createWebsiteBuilderFormFieldsField("fields", {
+const checkoutFormFieldsField = createPhotonFormFieldsField("fields", {
 	label: "Checkout fields",
 	description:
 		"Runtime checkout form schema. Required checkout identity fields stay enforced by the commerce form policy; additional fields can be added and reordered.",
@@ -203,9 +203,9 @@ const readCheckoutStepFromResources = (
 
 const CommerceCheckoutForm = ({
 	block,
-}: WebsiteBuilderBlockComponentProps<CommerceCheckoutFormProps>) => {
-	const { mode, requestAuth, resources } = useWebsiteBuilder();
-	const { contentLocale } = useWebsiteBuilderI18n();
+}: PhotonBlockComponentProps<CommerceCheckoutFormProps>) => {
+	const { mode, requestAuth, resources } = usePhoton();
+	const { contentLocale } = usePhotonI18n();
 	const authResource = resources.auth as
 		| { user?: null | Record<string, unknown> }
 		| undefined;
@@ -301,7 +301,7 @@ const CommerceCheckoutForm = ({
 	);
 	const syncItemQuantity = useMemo(
 		() =>
-			debounce((itemId: string, nextQuantity: number) => {
+			debounceCallback((itemId: string, nextQuantity: number) => {
 				void syncItemQuantityNow(itemId, nextQuantity);
 			}, 350),
 		[syncItemQuantityNow],
@@ -534,7 +534,7 @@ const CommerceCheckoutForm = ({
 			{items.map((item) => (
 				<div
 					key={item.id}
-					className="grid gap-4 border-b border-[color:var(--wb-site-border)] p-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto]"
+					className="grid gap-4 border-b border-[color:var(--photon-site-border)] p-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto]"
 				>
 					<div className="min-w-0">
 						<div className={`font-semibold ${cx.strongText}`}>{item.name}</div>
@@ -560,15 +560,15 @@ const CommerceCheckoutForm = ({
 								onValueCommit={(nextQuantity) =>
 									setItemQuantity(item.id, nextQuantity)
 								}
-								className="h-10 min-w-32 border-[var(--wb-site-border)] bg-[color-mix(in_oklab,var(--wb-site-background)_86%,black)] text-[var(--wb-site-text)]"
-								buttonClassName="h-8 w-8 hover:bg-[color-mix(in_oklab,var(--wb-site-accent)_18%,transparent)]"
+								className="h-10 min-w-32 border-[var(--photon-site-border)] bg-[color-mix(in_oklab,var(--photon-site-background)_86%,black)] text-[var(--photon-site-text)]"
+								buttonClassName="h-8 w-8 hover:bg-[color-mix(in_oklab,var(--photon-site-accent)_18%,transparent)]"
 								valueClassName="h-8"
 							/>
 							<button
 								type="button"
 								aria-label="Remove item"
 								onClick={() => setItemQuantity(item.id, 0)}
-								className={`flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--wb-site-border)] transition hover:border-[var(--wb-site-accent)] hover:text-[var(--wb-site-accent)] ${cx.mutedText}`}
+								className={`flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--photon-site-border)] transition hover:border-[var(--photon-site-accent)] hover:text-[var(--photon-site-accent)] ${cx.mutedText}`}
 							>
 								<X className="h-4 w-4" />
 							</button>
@@ -617,7 +617,7 @@ const CommerceCheckoutForm = ({
 		</div>
 	) : (
 		<div
-			className={`mt-8 rounded-lg bg-[color-mix(in_oklab,var(--wb-site-surface)_58%,var(--wb-site-background))] px-6 py-10 text-center`}
+			className={`mt-8 rounded-lg bg-[color-mix(in_oklab,var(--photon-site-surface)_58%,var(--photon-site-background))] px-6 py-10 text-center`}
 		>
 			<EditableText
 				blockId={block.id}
@@ -640,14 +640,14 @@ const CommerceCheckoutForm = ({
 				<Breadcrumb className="mb-8">
 					<BreadcrumbList>
 						<BreadcrumbItem>
-							<WebsiteBuilderLink href={cartHref}>
+							<PhotonLink href={cartHref}>
 								<EditableText
 									blockId={block.id}
 									path="breadcrumbCartLabel"
 									placeholder={getFallbackText("breadcrumbCartLabel")}
 									className="font-medium"
 								/>
-							</WebsiteBuilderLink>
+							</PhotonLink>
 						</BreadcrumbItem>
 						<BreadcrumbSeparator />
 						<BreadcrumbItem>
@@ -757,7 +757,7 @@ const CommerceCheckoutForm = ({
 										className={`max-w-2xl text-base leading-7 ${cx.mutedText}`}
 									/>
 									<div className="mt-5">
-										<WebsiteBuilderLink
+										<PhotonLink
 											href={accountOrdersHref}
 											className={cx.primaryButton}
 										>
@@ -767,11 +767,11 @@ const CommerceCheckoutForm = ({
 												placeholder={getFallbackText("trackOrderLabel")}
 												className="font-semibold"
 											/>
-										</WebsiteBuilderLink>
+										</PhotonLink>
 									</div>
 								</div>
 								<div className={`overflow-hidden ${cx.surface}`}>
-									<div className="border-b border-[color:var(--wb-site-border)] p-5">
+									<div className="border-b border-[color:var(--photon-site-border)] p-5">
 										<EditableText
 											blockId={block.id}
 											path="orderDetailsTitle"
@@ -827,7 +827,7 @@ const CommerceCheckoutForm = ({
 											</div>
 										</dl>
 									</div>
-									<div className="divide-y divide-[color:var(--wb-site-border)]">
+									<div className="divide-y divide-[color:var(--photon-site-border)]">
 										{order.items.map((item) => (
 											<div
 												key={item.id}
@@ -863,7 +863,7 @@ const CommerceCheckoutForm = ({
 						) : isCartStep ? (
 							cartList
 						) : (
-							<WebsiteBuilderForm
+							<PhotonForm
 								blockId={block.id}
 								fieldsPath="fields"
 								definition={checkoutFormDefinition}
@@ -949,7 +949,7 @@ const CommerceCheckoutForm = ({
 										className={`text-sm sm:col-span-12 ${cx.errorText}`}
 									/>
 								) : null}
-							</WebsiteBuilderForm>
+							</PhotonForm>
 						)}
 					</div>
 
@@ -973,90 +973,90 @@ const CommerceCheckoutForm = ({
 	);
 };
 
-export const commerceCheckoutFormDefinition: WebsiteBuilderBlockDefinition<CommerceCheckoutFormProps> =
-	defineWebsiteBuilderBlockDefinition<CommerceCheckoutFormProps>({
+export const commerceCheckoutFormDefinition: PhotonBlockDefinition<CommerceCheckoutFormProps> =
+	definePhotonBlockDefinition<CommerceCheckoutFormProps>({
 		type: "commerce-checkout-form",
 		label: "Commerce Checkout Form",
-		labelKey: "commerceWebsiteBuilder.checkoutForm.label",
+		labelKey: "commercePhoton.checkoutForm.label",
 		description: "Checkout form that places an order from the active cart.",
-		descriptionKey: "commerceWebsiteBuilder.checkoutForm.description",
+		descriptionKey: "commercePhoton.checkoutForm.description",
 		category: "Commerce",
 		icon: "credit-card",
 		defaults: {
-			breadcrumbCartLabel: createWebsiteBuilderLocalizedDefault({
+			breadcrumbCartLabel: createPhotonLocalizedDefault({
 				en: "Cart",
 				ru: "Корзина",
 			}),
-			breadcrumbCheckoutLabel: createWebsiteBuilderLocalizedDefault({
+			breadcrumbCheckoutLabel: createPhotonLocalizedDefault({
 				en: "Checkout",
 				ru: "Оформить заказ",
 			}),
-			cartEyebrow: createWebsiteBuilderLocalizedDefault({
+			cartEyebrow: createPhotonLocalizedDefault({
 				en: "Cart",
 				ru: "Корзина",
 			}),
-			cartTitle: createWebsiteBuilderLocalizedDefault({
+			cartTitle: createPhotonLocalizedDefault({
 				en: "Your cart",
 				ru: "Ваша корзина",
 			}),
-			cartCheckoutLabel: createWebsiteBuilderLocalizedDefault({
+			cartCheckoutLabel: createPhotonLocalizedDefault({
 				en: "Checkout",
 				ru: "Оформить заказ",
 			}),
-			cartEmptyTitle: createWebsiteBuilderLocalizedDefault({
+			cartEmptyTitle: createPhotonLocalizedDefault({
 				en: "Your cart is empty",
 				ru: "Корзина пуста",
 			}),
-			cartEmptyBody: createWebsiteBuilderLocalizedDefault({
+			cartEmptyBody: createPhotonLocalizedDefault({
 				en: "Add a catalog item to start checkout.",
 				ru: "Добавьте товар из каталога, чтобы перейти к оформлению.",
 			}),
-			cartStepTitle: createWebsiteBuilderLocalizedDefault({
+			cartStepTitle: createPhotonLocalizedDefault({
 				en: "Cart",
 				ru: "Корзина",
 			}),
-			cartStepDescription: createWebsiteBuilderLocalizedDefault({
+			cartStepDescription: createPhotonLocalizedDefault({
 				en: "Review items",
 				ru: "Проверьте позиции",
 			}),
-			checkoutStepTitle: createWebsiteBuilderLocalizedDefault({
+			checkoutStepTitle: createPhotonLocalizedDefault({
 				en: "Checkout",
 				ru: "Оформление",
 			}),
-			checkoutStepDescription: createWebsiteBuilderLocalizedDefault({
+			checkoutStepDescription: createPhotonLocalizedDefault({
 				en: "Contacts and order",
 				ru: "Контакты и заказ",
 			}),
-			doneStepTitle: createWebsiteBuilderLocalizedDefault({
+			doneStepTitle: createPhotonLocalizedDefault({
 				en: "Order confirmed",
 				ru: "Заказ оформлен",
 			}),
-			doneStepDescription: createWebsiteBuilderLocalizedDefault({
+			doneStepDescription: createPhotonLocalizedDefault({
 				en: "Order placed",
 				ru: "Заказ создан",
 			}),
-			eyebrow: createWebsiteBuilderLocalizedDefault({
+			eyebrow: createPhotonLocalizedDefault({
 				en: "Checkout",
 				ru: "Оформление",
 			}),
-			title: createWebsiteBuilderLocalizedDefault({
+			title: createPhotonLocalizedDefault({
 				en: "Place your order",
 				ru: "Оформить заказ",
 			}),
-			body: createWebsiteBuilderLocalizedDefault({
+			body: createPhotonLocalizedDefault({
 				en: "Review your active cart and leave contact details for the order snapshot.",
 				ru: "Проверьте активную корзину и оставьте контактные данные для снимка заказа.",
 			}),
-			nameLabel: createWebsiteBuilderLocalizedDefault({
+			nameLabel: createPhotonLocalizedDefault({
 				en: "Name",
 				ru: "Имя",
 			}),
 			emailLabel: "Email",
-			phoneLabel: createWebsiteBuilderLocalizedDefault({
+			phoneLabel: createPhotonLocalizedDefault({
 				en: "Phone",
 				ru: "Телефон",
 			}),
-			fields: createWebsiteBuilderLocalizedDefault({
+			fields: createPhotonLocalizedDefault({
 				en: checkoutDefaultFields,
 				ru: [
 					{
@@ -1073,59 +1073,59 @@ export const commerceCheckoutFormDefinition: WebsiteBuilderBlockDefinition<Comme
 					},
 				],
 			}),
-			summaryTitle: createWebsiteBuilderLocalizedDefault({
+			summaryTitle: createPhotonLocalizedDefault({
 				en: "Cart",
 				ru: "Корзина",
 			}),
-			summaryTotalLabel: createWebsiteBuilderLocalizedDefault({
+			summaryTotalLabel: createPhotonLocalizedDefault({
 				en: "Total",
 				ru: "Итого",
 			}),
-			summaryEmptyBody: createWebsiteBuilderLocalizedDefault({
+			summaryEmptyBody: createPhotonLocalizedDefault({
 				en: "Cart is empty.",
 				ru: "Корзина пуста.",
 			}),
-			summaryReturnLabel: createWebsiteBuilderLocalizedDefault({
+			summaryReturnLabel: createPhotonLocalizedDefault({
 				en: "Return to cart",
 				ru: "Вернуться в корзину",
 			}),
-			submitLabel: createWebsiteBuilderLocalizedDefault({
+			submitLabel: createPhotonLocalizedDefault({
 				en: "Place order",
 				ru: "Разместить заказ",
 			}),
-			savingLabel: createWebsiteBuilderLocalizedDefault({
+			savingLabel: createPhotonLocalizedDefault({
 				en: "Placing...",
 				ru: "Размещаем...",
 			}),
-			errorLabel: createWebsiteBuilderLocalizedDefault({
+			errorLabel: createPhotonLocalizedDefault({
 				en: "Unable to place order",
 				ru: "Не удалось разместить заказ",
 			}),
-			successTitle: createWebsiteBuilderLocalizedDefault({
+			successTitle: createPhotonLocalizedDefault({
 				en: "Order confirmed",
 				ru: "Заказ оформлен",
 			}),
-			successBody: createWebsiteBuilderLocalizedDefault({
+			successBody: createPhotonLocalizedDefault({
 				en: "We saved your order and will keep its status updated in your account.",
 				ru: "Мы сохранили заказ и будем обновлять его статус в личном кабинете.",
 			}),
-			orderDetailsTitle: createWebsiteBuilderLocalizedDefault({
+			orderDetailsTitle: createPhotonLocalizedDefault({
 				en: "Order details",
 				ru: "Детали заказа",
 			}),
-			orderNumberLabel: createWebsiteBuilderLocalizedDefault({
+			orderNumberLabel: createPhotonLocalizedDefault({
 				en: "Order number",
 				ru: "Номер заказа",
 			}),
-			orderStatusLabel: createWebsiteBuilderLocalizedDefault({
+			orderStatusLabel: createPhotonLocalizedDefault({
 				en: "Status",
 				ru: "Статус",
 			}),
-			orderTotalLabel: createWebsiteBuilderLocalizedDefault({
+			orderTotalLabel: createPhotonLocalizedDefault({
 				en: "Total",
 				ru: "Итого",
 			}),
-			trackOrderLabel: createWebsiteBuilderLocalizedDefault({
+			trackOrderLabel: createPhotonLocalizedDefault({
 				en: "Track order status in your account",
 				ru: "Отслеживать статус заказа в личном кабинете",
 			}),

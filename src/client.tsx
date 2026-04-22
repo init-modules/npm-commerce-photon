@@ -5,23 +5,25 @@ import {
 	createCommerceClient,
 	type CommerceAxiosLike,
 	type CommerceCart,
-} from "@init-modules/commerce";
+} from "@init/commerce";
 import {
 	commerceCartResourceKey,
 	commerceCartStoreDefinition,
 	useCommerceCartStore,
-} from "@init-modules/commerce/client";
+} from "@init/commerce/client";
+import { NextDataFlowProvider } from "@init/next-data-flow/client";
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useRef } from "react";
 
-export const commerceWebsiteBuilderDataStores = [
+export const commercePhotonDataStores = [
 	commerceCartStoreDefinition,
 ] as const;
 
-export const createCommerceWebsiteBuilderClient = (
+export const createCommercePhotonClient = (
 	api: CommerceAxiosLike,
 ) => createCommerceClient(createAxiosCommerceRequest(api));
 
-export const createCommerceWebsiteBuilderCartSnapshot = (
+export const createCommercePhotonCartSnapshot = (
 	resources: Record<string, unknown>,
 ) => ({
 	[commerceCartResourceKey.id]:
@@ -30,7 +32,7 @@ export const createCommerceWebsiteBuilderCartSnapshot = (
 		null,
 });
 
-export const withCommerceWebsiteBuilderRuntimeResources = <
+export const withCommercePhotonRuntimeResources = <
 	TPage extends {
 		resources: Record<string, unknown>;
 	},
@@ -66,7 +68,7 @@ export const withCommerceWebsiteBuilderRuntimeResources = <
 	};
 };
 
-export const broadcastCommerceWebsiteBuilderCart = (
+export const broadcastCommercePhotonCart = (
 	cart: CommerceCart | null,
 ) => {
 	if (typeof window === "undefined") {
@@ -80,18 +82,18 @@ export const broadcastCommerceWebsiteBuilderCart = (
 	);
 };
 
-export const syncCommerceWebsiteBuilderCart = async (
+export const syncCommercePhotonCart = async (
 	api: CommerceAxiosLike,
 ) => {
-	const commerceClient = createCommerceWebsiteBuilderClient(api);
+	const commerceClient = createCommercePhotonClient(api);
 	const response = await commerceClient.syncCurrentCart();
 	const cart = response.data ?? null;
-	broadcastCommerceWebsiteBuilderCart(cart);
+	broadcastCommercePhotonCart(cart);
 
 	return cart;
 };
 
-export const CommerceWebsiteBuilderCartEventBridge = () => {
+export const CommercePhotonCartEventBridge = () => {
 	const cart = useCommerceCartStore((state) => state.cart);
 	const setCart = useCommerceCartStore((state) => state.setCart);
 	const didBroadcastRef = useRef(false);
@@ -124,17 +126,37 @@ export const CommerceWebsiteBuilderCartEventBridge = () => {
 		}
 
 		broadcastingRef.current = true;
-		broadcastCommerceWebsiteBuilderCart(cart ?? null);
+		broadcastCommercePhotonCart(cart ?? null);
 		broadcastingRef.current = false;
 	}, [cart]);
 
 	return null;
 };
 
-export const useCommerceWebsiteBuilderCartSnapshot = (
+export const useCommercePhotonCartSnapshot = (
 	resources: Record<string, unknown>,
 ) =>
 	useMemo(
-		() => createCommerceWebsiteBuilderCartSnapshot(resources),
+		() => createCommercePhotonCartSnapshot(resources),
 		[resources],
 	);
+
+export const CommercePhotonDataFlowProvider = ({
+	children,
+	resources,
+}: {
+	children: ReactNode;
+	resources: Record<string, unknown>;
+}) => {
+	const snapshot = useCommercePhotonCartSnapshot(resources);
+
+	return (
+		<NextDataFlowProvider
+			snapshot={snapshot}
+			stores={commercePhotonDataStores}
+		>
+			<CommercePhotonCartEventBridge />
+			{children}
+		</NextDataFlowProvider>
+	);
+};

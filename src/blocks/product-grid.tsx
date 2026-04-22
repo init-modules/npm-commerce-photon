@@ -4,22 +4,21 @@ import {
 	type CommerceCatalogItemView,
 	createCommerceClient,
 	getCommerceRequest,
-} from "@init-modules/commerce";
-import { useCommerceCartStore } from "@init-modules/commerce/client";
-import { Counter } from "@init-modules/ui";
+} from "@init/commerce";
+import { useCommerceCartStore } from "@init/commerce/client";
+import { Counter } from "@init/ui";
 import {
-	createWebsiteBuilderLocalizedDefault,
-	defineWebsiteBuilderBlockDefinition,
+	createPhotonLocalizedDefault,
+	definePhotonBlockDefinition,
 	EditableText,
 	EditableTextarea,
-	useWebsiteBuilder,
-	useWebsiteBuilderI18n,
-	useWebsiteBuilderValueAtPath,
-	type WebsiteBuilderBlockComponentProps,
-	type WebsiteBuilderBlockDefinition,
-	WebsiteBuilderLink,
-} from "@init-modules/website-builder/public";
-import debounce from "lodash-es/debounce";
+	usePhoton,
+	usePhotonI18n,
+	usePhotonValueAtPath,
+	type PhotonBlockComponentProps,
+	type PhotonBlockDefinition,
+	PhotonLink,
+} from "@init/photon/public";
 import {
 	type CSSProperties,
 	useCallback,
@@ -28,6 +27,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { debounceCallback } from "../helpers/debounce";
 import {
 	commerceBlockClassNames as cx,
 	emitCommerceCartUpdated,
@@ -85,11 +85,11 @@ const FavoriteIcon = () => (
 
 const CommerceProductGrid = ({
 	block,
-}: WebsiteBuilderBlockComponentProps<CommerceProductGridProps>) => {
-	const { contentLocale } = useWebsiteBuilderI18n();
-	const { mode } = useWebsiteBuilder();
+}: PhotonBlockComponentProps<CommerceProductGridProps>) => {
+	const { contentLocale } = usePhotonI18n();
+	const { mode } = usePhoton();
 	const items = normalizeCommerceProducts(
-		useWebsiteBuilderValueAtPath(block.id, "items"),
+		usePhotonValueAtPath(block.id, "items"),
 	);
 	const columns = Math.min(Math.max(Number(block.props.columns || 3), 1), 5);
 	const addToCartLabel =
@@ -222,7 +222,7 @@ const CommerceProductGrid = ({
 
 	const syncItemQuantity = useMemo(
 		() =>
-			debounce((item: CommerceCatalogItemView, nextQuantity: number) => {
+			debounceCallback((item: CommerceCatalogItemView, nextQuantity: number) => {
 				void syncItemQuantityNow(item, nextQuantity);
 			}, 350),
 		[syncItemQuantityNow],
@@ -280,14 +280,14 @@ const CommerceProductGrid = ({
 						<button
 							type="button"
 							aria-label="Previous catalog items"
-							className={`flex h-11 w-11 items-center justify-center rounded-lg border border-[color:var(--wb-site-border)] ${cx.mutedText}`}
+							className={`flex h-11 w-11 items-center justify-center rounded-lg border border-[color:var(--photon-site-border)] ${cx.mutedText}`}
 						>
 							‹
 						</button>
 						<button
 							type="button"
 							aria-label="Next catalog items"
-							className={`flex h-11 w-11 items-center justify-center rounded-lg border border-[color:var(--wb-site-border)] ${cx.mutedText}`}
+							className={`flex h-11 w-11 items-center justify-center rounded-lg border border-[color:var(--photon-site-border)] ${cx.mutedText}`}
 						>
 							›
 						</button>
@@ -313,7 +313,7 @@ const CommerceProductGrid = ({
 									key={item.id}
 									className="group w-full max-w-[18rem] min-w-0 xl:max-w-none"
 								>
-									<WebsiteBuilderLink href={itemHref} className="block min-w-0">
+									<PhotonLink href={itemHref} className="block min-w-0">
 										<div
 											className={`relative aspect-[4/3] overflow-hidden rounded-md ${cx.mutedSurface}`}
 										>
@@ -324,7 +324,7 @@ const CommerceProductGrid = ({
 													className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
 												/>
 											) : (
-												<div className="flex h-full w-full items-center justify-center bg-[color-mix(in_oklab,var(--wb-site-surface)_70%,var(--wb-site-accent))] p-6 text-center">
+												<div className="flex h-full w-full items-center justify-center bg-[color-mix(in_oklab,var(--photon-site-surface)_70%,var(--photon-site-accent))] p-6 text-center">
 													<div
 														className={`max-w-[12rem] text-xs font-semibold uppercase tracking-[0.2em] ${cx.mutedText}`}
 													>
@@ -333,7 +333,7 @@ const CommerceProductGrid = ({
 												</div>
 											)}
 										</div>
-									</WebsiteBuilderLink>
+									</PhotonLink>
 									<div className="mt-5">
 										<div
 											className={`text-xl font-semibold tracking-tight ${cx.strongText}`}
@@ -344,7 +344,7 @@ const CommerceProductGrid = ({
 												contentLocale,
 											)}
 										</div>
-										<WebsiteBuilderLink
+										<PhotonLink
 											href={itemHref}
 											className={`mt-2 block min-h-12 text-base font-medium leading-6 ${cx.strongText}`}
 										>
@@ -353,7 +353,7 @@ const CommerceProductGrid = ({
 												path={`items.${itemIndex}.name`}
 												className="line-clamp-2"
 											/>
-										</WebsiteBuilderLink>
+										</PhotonLink>
 										{block.props.showDescription && item.description ? (
 											<EditableTextarea
 												blockId={block.id}
@@ -365,7 +365,7 @@ const CommerceProductGrid = ({
 											className={`mt-3 flex items-center gap-3 text-sm ${cx.mutedText}`}
 										>
 											<span>☆ 0.0</span>
-											<span className="inline-flex items-center gap-1 text-[var(--wb-site-accent)]">
+											<span className="inline-flex items-center gap-1 text-[var(--photon-site-accent)]">
 												<span aria-hidden="true">⊙</span>
 												{getStockLabel(contentLocale, item)}
 											</span>
@@ -393,8 +393,8 @@ const CommerceProductGrid = ({
 														);
 														syncItemQuantity(item, nextQuantity);
 													}}
-													className="h-10 min-w-32 bg-[var(--wb-site-text)] text-[var(--wb-site-background)]"
-													buttonClassName="h-8 w-8 hover:bg-[color-mix(in_oklab,var(--wb-site-background)_14%,transparent)]"
+													className="h-10 min-w-32 bg-[var(--photon-site-text)] text-[var(--photon-site-background)]"
+													buttonClassName="h-8 w-8 hover:bg-[color-mix(in_oklab,var(--photon-site-background)_14%,transparent)]"
 													valueClassName="h-8"
 												/>
 											) : (
@@ -410,17 +410,17 @@ const CommerceProductGrid = ({
 											<button
 												type="button"
 												aria-label={block.props.cardCtaLabel}
-												className={`flex h-10 w-10 items-center justify-center rounded-full transition hover:text-[var(--wb-site-accent)] ${cx.mutedText}`}
+												className={`flex h-10 w-10 items-center justify-center rounded-full transition hover:text-[var(--photon-site-accent)] ${cx.mutedText}`}
 											>
 												<FavoriteIcon />
 											</button>
-											<WebsiteBuilderLink
+											<PhotonLink
 												href={itemHref}
 												aria-label={block.props.cardCtaLabel}
-												className={`flex h-10 w-10 items-center justify-center rounded-full transition hover:text-[var(--wb-site-accent)] ${cx.mutedText}`}
+												className={`flex h-10 w-10 items-center justify-center rounded-full transition hover:text-[var(--photon-site-accent)] ${cx.mutedText}`}
 											>
 												<DetailIcon />
-											</WebsiteBuilderLink>
+											</PhotonLink>
 										</div>
 										{status === "error" ? (
 											<div className={`mt-2 text-sm ${cx.errorText}`}>
@@ -447,41 +447,41 @@ const CommerceProductGrid = ({
 	);
 };
 
-export const commerceProductGridDefinition: WebsiteBuilderBlockDefinition<CommerceProductGridProps> =
-	defineWebsiteBuilderBlockDefinition<CommerceProductGridProps>({
+export const commerceProductGridDefinition: PhotonBlockDefinition<CommerceProductGridProps> =
+	definePhotonBlockDefinition<CommerceProductGridProps>({
 		type: "commerce-product-grid",
 		label: "Commerce Product Grid",
-		labelKey: "commerceWebsiteBuilder.productGrid.label",
+		labelKey: "commercePhoton.productGrid.label",
 		description: "Live catalog cards with editable storefront copy.",
-		descriptionKey: "commerceWebsiteBuilder.productGrid.description",
+		descriptionKey: "commercePhoton.productGrid.description",
 		category: "Commerce",
 		icon: "shopping-bag",
 		defaults: {
-			eyebrow: createWebsiteBuilderLocalizedDefault({
+			eyebrow: createPhotonLocalizedDefault({
 				en: "Catalog",
 				ru: "Каталог",
 			}),
-			title: createWebsiteBuilderLocalizedDefault({
+			title: createPhotonLocalizedDefault({
 				en: "Products and services",
 				ru: "Товары и услуги",
 			}),
-			body: createWebsiteBuilderLocalizedDefault({
+			body: createPhotonLocalizedDefault({
 				en: "Browse live catalog items managed by the commerce packages.",
 				ru: "Просматривайте живые позиции каталога из commerce-пакетов.",
 			}),
-			emptyTitle: createWebsiteBuilderLocalizedDefault({
+			emptyTitle: createPhotonLocalizedDefault({
 				en: "No products yet",
 				ru: "Товаров пока нет",
 			}),
-			emptyBody: createWebsiteBuilderLocalizedDefault({
+			emptyBody: createPhotonLocalizedDefault({
 				en: "Add active catalog items to unlock this storefront section.",
 				ru: "Добавьте активные позиции каталога, чтобы открыть этот раздел витрины.",
 			}),
-			cardCtaLabel: createWebsiteBuilderLocalizedDefault({
+			cardCtaLabel: createPhotonLocalizedDefault({
 				en: "View product",
 				ru: "Открыть товар",
 			}),
-			addToCartLabel: createWebsiteBuilderLocalizedDefault({
+			addToCartLabel: createPhotonLocalizedDefault({
 				en: "Add to cart",
 				ru: "В корзину",
 			}),

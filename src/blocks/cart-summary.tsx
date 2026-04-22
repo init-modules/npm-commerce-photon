@@ -3,8 +3,8 @@
 import {
 	createCommerceClient,
 	getCommerceRequest,
-} from "@init-modules/commerce";
-import { useCommerceCartStore } from "@init-modules/commerce/client";
+} from "@init/commerce";
+import { useCommerceCartStore } from "@init/commerce/client";
 import {
 	Breadcrumb,
 	BreadcrumbItem,
@@ -13,22 +13,22 @@ import {
 	BreadcrumbSeparator,
 	Counter,
 	Steps,
-} from "@init-modules/ui";
+} from "@init/ui";
 import {
-	createWebsiteBuilderLocalizedDefault,
-	defineWebsiteBuilderBlockDefinition,
+	createPhotonLocalizedDefault,
+	definePhotonBlockDefinition,
 	EditableText,
 	EditableTextarea,
-	useWebsiteBuilder,
-	useWebsiteBuilderI18n,
-	type WebsiteBuilderBlockComponentProps,
-	type WebsiteBuilderBlockDefinition,
-	WebsiteBuilderLink,
-} from "@init-modules/website-builder/public";
-import debounce from "lodash-es/debounce";
+	usePhoton,
+	usePhotonI18n,
+	type PhotonBlockComponentProps,
+	type PhotonBlockDefinition,
+	PhotonLink,
+} from "@init/photon/public";
 import { X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
+import { debounceCallback } from "../helpers/debounce";
 import {
 	commerceBlockClassNames as cx,
 	emitCommerceCartUpdated,
@@ -65,9 +65,9 @@ const createCheckoutSteps = (locale: string, current: number) =>
 
 const CommerceCartSummary = ({
 	block,
-}: WebsiteBuilderBlockComponentProps<CommerceCartSummaryProps>) => {
-	const { mode } = useWebsiteBuilder();
-	const { contentLocale } = useWebsiteBuilderI18n();
+}: PhotonBlockComponentProps<CommerceCartSummaryProps>) => {
+	const { mode } = usePhoton();
+	const { contentLocale } = usePhotonI18n();
 	const { applyItemQuantity, cart, setCart, setStatus, status } =
 		useCommerceCartStore(
 			(state) => ({
@@ -158,7 +158,7 @@ const CommerceCartSummary = ({
 
 	const syncItemQuantity = useMemo(
 		() =>
-			debounce((itemId: string, nextQuantity: number) => {
+			debounceCallback((itemId: string, nextQuantity: number) => {
 				void syncItemQuantityNow(itemId, nextQuantity);
 			}, 350),
 		[syncItemQuantityNow],
@@ -189,9 +189,9 @@ const CommerceCartSummary = ({
 				<Breadcrumb className="mb-8">
 					<BreadcrumbList>
 						<BreadcrumbItem>
-							<WebsiteBuilderLink href={block.props.catalogHref}>
+							<PhotonLink href={block.props.catalogHref}>
 								{block.props.catalogLabel}
-							</WebsiteBuilderLink>
+							</PhotonLink>
 						</BreadcrumbItem>
 						<BreadcrumbSeparator />
 						<BreadcrumbItem>
@@ -221,7 +221,7 @@ const CommerceCartSummary = ({
 						{items.map((item) => (
 							<div
 								key={item.id}
-								className="grid gap-4 border-b border-[color:var(--wb-site-border)] p-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto]"
+								className="grid gap-4 border-b border-[color:var(--photon-site-border)] p-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto]"
 							>
 								<div className="min-w-0">
 									<div className={`font-semibold ${cx.strongText}`}>
@@ -252,15 +252,15 @@ const CommerceCartSummary = ({
 											onValueCommit={(nextQuantity) =>
 												setItemQuantity(item.id, nextQuantity)
 											}
-											className="h-10 min-w-32 border-[var(--wb-site-border)] bg-[color-mix(in_oklab,var(--wb-site-background)_86%,black)] text-[var(--wb-site-text)]"
-											buttonClassName="h-8 w-8 hover:bg-[color-mix(in_oklab,var(--wb-site-accent)_18%,transparent)]"
+											className="h-10 min-w-32 border-[var(--photon-site-border)] bg-[color-mix(in_oklab,var(--photon-site-background)_86%,black)] text-[var(--photon-site-text)]"
+											buttonClassName="h-8 w-8 hover:bg-[color-mix(in_oklab,var(--photon-site-accent)_18%,transparent)]"
 											valueClassName="h-8"
 										/>
 										<button
 											type="button"
 											aria-label="Remove item"
 											onClick={() => setItemQuantity(item.id, 0)}
-											className={`flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--wb-site-border)] transition hover:border-[var(--wb-site-accent)] hover:text-[var(--wb-site-accent)] ${cx.mutedText}`}
+											className={`flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--photon-site-border)] transition hover:border-[var(--photon-site-accent)] hover:text-[var(--photon-site-accent)] ${cx.mutedText}`}
 										>
 											<X className="h-4 w-4" />
 										</button>
@@ -288,12 +288,12 @@ const CommerceCartSummary = ({
 									)}
 								</div>
 							</div>
-							<WebsiteBuilderLink
+							<PhotonLink
 								href={block.props.checkoutHref}
 								className={cx.primaryButton}
 							>
 								{block.props.checkoutLabel}
-							</WebsiteBuilderLink>
+							</PhotonLink>
 						</div>
 					</div>
 				) : (
@@ -308,12 +308,12 @@ const CommerceCartSummary = ({
 							path="emptyBody"
 							className={`mt-3 text-sm leading-7 ${cx.mutedText}`}
 						/>
-						<WebsiteBuilderLink
+						<PhotonLink
 							href={block.props.catalogHref}
 							className={`mt-6 ${cx.secondaryButton}`}
 						>
 							{block.props.catalogLabel}
-						</WebsiteBuilderLink>
+						</PhotonLink>
 					</div>
 				)}
 
@@ -327,37 +327,37 @@ const CommerceCartSummary = ({
 	);
 };
 
-export const commerceCartSummaryDefinition: WebsiteBuilderBlockDefinition<CommerceCartSummaryProps> =
-	defineWebsiteBuilderBlockDefinition<CommerceCartSummaryProps>({
+export const commerceCartSummaryDefinition: PhotonBlockDefinition<CommerceCartSummaryProps> =
+	definePhotonBlockDefinition<CommerceCartSummaryProps>({
 		type: "commerce-cart-summary",
 		label: "Commerce Cart Summary",
-		labelKey: "commerceWebsiteBuilder.cartSummary.label",
+		labelKey: "commercePhoton.cartSummary.label",
 		description: "Active cart lines and totals.",
-		descriptionKey: "commerceWebsiteBuilder.cartSummary.description",
+		descriptionKey: "commercePhoton.cartSummary.description",
 		category: "Commerce",
 		icon: "shopping-cart",
 		defaults: {
-			eyebrow: createWebsiteBuilderLocalizedDefault({
+			eyebrow: createPhotonLocalizedDefault({
 				en: "Cart",
 				ru: "Корзина",
 			}),
-			title: createWebsiteBuilderLocalizedDefault({
+			title: createPhotonLocalizedDefault({
 				en: "Your cart",
 				ru: "Ваша корзина",
 			}),
-			emptyTitle: createWebsiteBuilderLocalizedDefault({
+			emptyTitle: createPhotonLocalizedDefault({
 				en: "Your cart is empty",
 				ru: "Корзина пуста",
 			}),
-			emptyBody: createWebsiteBuilderLocalizedDefault({
+			emptyBody: createPhotonLocalizedDefault({
 				en: "Add a catalog item to start checkout.",
 				ru: "Добавьте товар из каталога, чтобы перейти к оформлению.",
 			}),
-			checkoutLabel: createWebsiteBuilderLocalizedDefault({
+			checkoutLabel: createPhotonLocalizedDefault({
 				en: "Checkout",
 				ru: "Оформить заказ",
 			}),
-			catalogLabel: createWebsiteBuilderLocalizedDefault({
+			catalogLabel: createPhotonLocalizedDefault({
 				en: "Continue shopping",
 				ru: "Продолжить покупки",
 			}),

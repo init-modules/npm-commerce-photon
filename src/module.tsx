@@ -1,10 +1,10 @@
 "use client";
 
 import {
-	createWebsiteBuilderKit,
-	type WebsiteBuilderInstallableKit,
-	type WebsiteBuilderModule,
-} from "@init-modules/website-builder/public";
+	createPhotonKit,
+	type PhotonInstallableKit,
+	type PhotonModule,
+} from "@init/photon/public";
 import {
 	commerceAddToCartDefinition,
 	commerceCartSummaryDefinition,
@@ -13,16 +13,16 @@ import {
 	commerceProductDetailDefinition,
 	commerceProductGridDefinition,
 } from "./blocks";
-import { commerceWebsiteBuilderDocuments } from "./documents";
+import { commercePhotonDocuments } from "./documents";
 import {
 	commerceOrdersAccountTab,
-	commerceWebsiteBuilderSiteFrameExtension,
+	commercePhotonSiteFrameExtension,
 } from "./sdk";
 
-export const commerceWebsiteBuilderModule: WebsiteBuilderModule = {
-	module: "commerce-website-builder",
-	label: "Commerce Website Builder",
-	labelKey: "commerceWebsiteBuilder.module.label",
+export const commercePhotonModule: PhotonModule = {
+	module: "commerce-photon",
+	label: "Commerce Photon",
+	labelKey: "commercePhoton.module.label",
 	version: "0.1.0",
 	blocks: [
 		commerceProductGridDefinition,
@@ -34,12 +34,12 @@ export const commerceWebsiteBuilderModule: WebsiteBuilderModule = {
 	],
 };
 
-export const commerceWebsiteBuilderKit: WebsiteBuilderInstallableKit =
-	createWebsiteBuilderKit({
-		key: "commerce-website-builder",
-		label: "Commerce Website Builder",
-		modules: [commerceWebsiteBuilderModule],
-		documents: commerceWebsiteBuilderDocuments,
-		siteFrameExtensions: [commerceWebsiteBuilderSiteFrameExtension],
+export const commercePhotonKit: PhotonInstallableKit =
+	createPhotonKit({
+		key: "commerce-photon",
+		label: "Commerce Photon",
+		modules: [commercePhotonModule],
+		documents: commercePhotonDocuments,
+		siteFrameExtensions: [commercePhotonSiteFrameExtension],
 		accountTabs: [commerceOrdersAccountTab],
 	});

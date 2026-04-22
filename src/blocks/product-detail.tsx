@@ -1,17 +1,17 @@
 "use client";
 
 import {
-	createWebsiteBuilderLocalizedDefault,
-	defineWebsiteBuilderBlockDefinition,
+	createPhotonLocalizedDefault,
+	definePhotonBlockDefinition,
 	EditableText,
 	EditableTextarea,
-	useWebsiteBuilder,
-	useWebsiteBuilderI18n,
-	useWebsiteBuilderValueAtPath,
-	type WebsiteBuilderBlockComponentProps,
-	type WebsiteBuilderBlockDefinition,
-	WebsiteBuilderLink,
-} from "@init-modules/website-builder/public";
+	usePhoton,
+	usePhotonI18n,
+	usePhotonValueAtPath,
+	type PhotonBlockComponentProps,
+	type PhotonBlockDefinition,
+	PhotonLink,
+} from "@init/photon/public";
 import {
 	commerceBlockClassNames as cx,
 	formatCommerceMoney,
@@ -28,11 +28,11 @@ type CommerceProductDetailProps = {
 
 const CommerceProductDetail = ({
 	block,
-}: WebsiteBuilderBlockComponentProps<CommerceProductDetailProps>) => {
-	const { contentLocale } = useWebsiteBuilderI18n();
-	const { resources } = useWebsiteBuilder();
+}: PhotonBlockComponentProps<CommerceProductDetailProps>) => {
+	const { contentLocale } = usePhotonI18n();
+	const { resources } = usePhoton();
 	const product = normalizeCommerceProduct(
-		useWebsiteBuilderValueAtPath(block.id, "product"),
+		usePhotonValueAtPath(block.id, "product"),
 	);
 	const commerceProductResource =
 		typeof resources.commerceProduct === "object" &&
@@ -70,12 +70,12 @@ const CommerceProductDetail = ({
 
 				<div className="flex min-w-0 flex-col justify-center">
 					{product?.catalogHref ? (
-						<WebsiteBuilderLink
+						<PhotonLink
 							href={product.catalogHref}
-							className="mb-6 text-sm font-semibold text-[var(--wb-site-accent)] hover:opacity-80"
+							className="mb-6 text-sm font-semibold text-[var(--photon-site-accent)] hover:opacity-80"
 						>
 							{block.props.backLabel}
-						</WebsiteBuilderLink>
+						</PhotonLink>
 					) : null}
 					<EditableText
 						blockId={block.id}
@@ -131,21 +131,21 @@ const CommerceProductDetail = ({
 	);
 };
 
-export const commerceProductDetailDefinition: WebsiteBuilderBlockDefinition<CommerceProductDetailProps> =
-	defineWebsiteBuilderBlockDefinition<CommerceProductDetailProps>({
+export const commerceProductDetailDefinition: PhotonBlockDefinition<CommerceProductDetailProps> =
+	definePhotonBlockDefinition<CommerceProductDetailProps>({
 		type: "commerce-product-detail",
 		label: "Commerce Product Detail",
-		labelKey: "commerceWebsiteBuilder.productDetail.label",
+		labelKey: "commercePhoton.productDetail.label",
 		description: "Product hero bound to the current catalog item.",
-		descriptionKey: "commerceWebsiteBuilder.productDetail.description",
+		descriptionKey: "commercePhoton.productDetail.description",
 		category: "Commerce",
 		icon: "package",
 		defaults: {
-			eyebrow: createWebsiteBuilderLocalizedDefault({
+			eyebrow: createPhotonLocalizedDefault({
 				en: "Product",
 				ru: "Товар",
 			}),
-			backLabel: createWebsiteBuilderLocalizedDefault({
+			backLabel: createPhotonLocalizedDefault({
 				en: "Back to catalog",
 				ru: "Назад в каталог",
 			}),

@@ -1,10 +1,10 @@
 "use client";
 
-import type { CommerceCartItem } from "@init-modules/commerce";
+import type { CommerceCartItem } from "@init/commerce";
 import {
 	EditableText,
-	WebsiteBuilderLink,
-} from "@init-modules/website-builder/public";
+	PhotonLink,
+} from "@init/photon/public";
 import { commerceBlockClassNames as cx, formatCommerceMoney } from "./shared";
 
 type CommerceCheckoutSummaryProps = {
@@ -53,7 +53,7 @@ export const CommerceCheckoutSummary = ({
 						</div>
 					))}
 				</div>
-				<div className="mt-5 border-t border-[color:var(--wb-site-border)] pt-4">
+				<div className="mt-5 border-t border-[color:var(--photon-site-border)] pt-4">
 					<div className="flex justify-between gap-4 text-base font-semibold">
 						<EditableText
 							blockId={blockId}
@@ -73,14 +73,14 @@ export const CommerceCheckoutSummary = ({
 					placeholder={emptyBody}
 					className={cx.mutedText}
 				/>{" "}
-				<WebsiteBuilderLink href={cartHref}>
+				<PhotonLink href={cartHref}>
 					<EditableText
 						blockId={blockId}
 						path="summaryReturnLabel"
 						placeholder={returnLabel}
 						className="font-medium"
 					/>
-				</WebsiteBuilderLink>
+				</PhotonLink>
 				.
 			</div>
 		)}

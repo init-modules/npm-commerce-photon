@@ -1,7 +1,7 @@
 {
-	"name": "@init-modules/commerce-website-builder",
+	"name": "@init/commerce-photon",
 	"version": "0.1.0",
-	"description": "Commerce storefront kit for the package-first website builder.",
+	"description": "Commerce storefront kit for the package-first photon.",
 	"type": "module",
 	"main": "./src/index.ts",
 	"module": "./src/index.ts",
@@ -14,10 +14,10 @@
 		"./nextjs": "./src/nextjs.ts"
 	},
 	"peerDependencies": {
-		"@init-modules/commerce": "^0.1.0",
-		"@init-modules/next-data-flow": "^0.1.0",
-		"@init-modules/ui": "^0.1.0",
-		"@init-modules/website-builder": "^0.1.0",
+		"@init/commerce": "^0.1.0",
+		"@init/next-data-flow": "^0.1.0",
+		"@init/ui": "^0.1.0",
+		"@init/photon": "^0.1.0",
 		"lucide-react": "^0.556.0",
 		"next": "^16.0.0",
 		"react": "^19.0.0",
@@ -29,15 +29,13 @@
 		}
 	},
 	"dependencies": {
-		"@types/lodash-es": "^4.17.12",
-		"lodash-es": "^4.17.21",
 		"zustand": "^5.0.12"
 	},
 	"devDependencies": {
-		"@init-modules/commerce": "file:../commerce",
-		"@init-modules/next-data-flow": "file:../../next-data-flow",
-		"@init-modules/ui": "file:../../ui-foundation/ui",
-		"@init-modules/website-builder": "file:../../website-builder-foundation/website-builder",
+		"@init/commerce": "file:../commerce",
+		"@init/next-data-flow": "file:../../next-data-flow",
+		"@init/ui": "file:../../ui-foundation/ui",
+		"@init/photon": "file:../../photon-foundation/photon",
 		"@types/node": "^20.19.39",
 		"@types/react": "^19.2.14",
 		"@types/react-dom": "^19.2.3",
@@ -45,9 +43,9 @@
 		"next": "16.0.8",
 		"typescript": "^5.9.3"
 	},
-	"websiteBuilder": {
-		"installableKitExport": "commerceWebsiteBuilderKit",
-		"publicInstallableKitExport": "commercePublicWebsiteBuilderKit",
-		"publicInstallableKitImportPath": "@init-modules/commerce-website-builder/public"
+	"photon": {
+		"installableKitExport": "commercePhotonKit",
+		"publicInstallableKitExport": "commercePublicPhotonKit",
+		"publicInstallableKitImportPath": "@init/commerce-photon/public"
 	}
 }

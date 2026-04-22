@@ -3,21 +3,21 @@
 import {
 	createCommerceClient,
 	getCommerceRequest,
-} from "@init-modules/commerce";
-import { useCommerceCartStore } from "@init-modules/commerce/client";
-import { Counter } from "@init-modules/ui";
+} from "@init/commerce";
+import { useCommerceCartStore } from "@init/commerce/client";
+import { Counter } from "@init/ui";
 import {
-	createWebsiteBuilderLocalizedDefault,
-	defineWebsiteBuilderBlockDefinition,
-	useWebsiteBuilder,
-	useWebsiteBuilderValueAtPath,
-	type WebsiteBuilderBlockComponentProps,
-	type WebsiteBuilderBlockDefinition,
-	WebsiteBuilderLink,
-} from "@init-modules/website-builder/public";
-import debounce from "lodash-es/debounce";
+	createPhotonLocalizedDefault,
+	definePhotonBlockDefinition,
+	usePhoton,
+	usePhotonValueAtPath,
+	type PhotonBlockComponentProps,
+	type PhotonBlockDefinition,
+	PhotonLink,
+} from "@init/photon/public";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
+import { debounceCallback } from "../helpers/debounce";
 import {
 	commerceBlockClassNames as cx,
 	emitCommerceCartUpdated,
@@ -52,10 +52,10 @@ const resolveCartLine = (
 
 const CommerceAddToCart = ({
 	block,
-}: WebsiteBuilderBlockComponentProps<CommerceAddToCartProps>) => {
-	const { mode } = useWebsiteBuilder();
+}: PhotonBlockComponentProps<CommerceAddToCartProps>) => {
+	const { mode } = usePhoton();
 	const product = normalizeCommerceProduct(
-		useWebsiteBuilderValueAtPath(block.id, "product"),
+		usePhotonValueAtPath(block.id, "product"),
 	);
 	const productId = product?.id ?? null;
 	const { cart, setCart } = useCommerceCartStore(
@@ -197,7 +197,7 @@ const CommerceAddToCart = ({
 
 	const syncQuantity = useMemo(
 		() =>
-			debounce((nextQuantity: number) => {
+			debounceCallback((nextQuantity: number) => {
 				void syncQuantityNow(nextQuantity);
 			}, 350),
 		[syncQuantityNow],
@@ -248,17 +248,17 @@ const CommerceAddToCart = ({
 								desiredQuantityRef.current = nextQuantity;
 							}}
 							onValueCommit={syncQuantity}
-							className="min-w-36 border-[var(--wb-site-border)] bg-[color-mix(in_oklab,var(--wb-site-background)_86%,black)] text-[var(--wb-site-text)]"
-							buttonClassName="hover:bg-[color-mix(in_oklab,var(--wb-site-accent)_18%,transparent)]"
+							className="min-w-36 border-[var(--photon-site-border)] bg-[color-mix(in_oklab,var(--photon-site-background)_86%,black)] text-[var(--photon-site-text)]"
+							buttonClassName="hover:bg-[color-mix(in_oklab,var(--photon-site-accent)_18%,transparent)]"
 						/>
 					) : null}
 					{cartLine?.quantity ? (
-						<WebsiteBuilderLink
+						<PhotonLink
 							href={block.props.cartHref}
 							className={cx.secondaryButton}
 						>
 							{block.props.successLabel}
-						</WebsiteBuilderLink>
+						</PhotonLink>
 					) : null}
 					{!cartLine?.quantity ? (
 						<button
@@ -281,25 +281,25 @@ const CommerceAddToCart = ({
 	);
 };
 
-export const commerceAddToCartDefinition: WebsiteBuilderBlockDefinition<CommerceAddToCartProps> =
-	defineWebsiteBuilderBlockDefinition<CommerceAddToCartProps>({
+export const commerceAddToCartDefinition: PhotonBlockDefinition<CommerceAddToCartProps> =
+	definePhotonBlockDefinition<CommerceAddToCartProps>({
 		type: "commerce-add-to-cart",
 		label: "Commerce Add To Cart",
-		labelKey: "commerceWebsiteBuilder.addToCart.label",
+		labelKey: "commercePhoton.addToCart.label",
 		description: "Add the current product to the active commerce cart.",
-		descriptionKey: "commerceWebsiteBuilder.addToCart.description",
+		descriptionKey: "commercePhoton.addToCart.description",
 		category: "Commerce",
 		icon: "shopping-cart",
 		defaults: {
-			quantityLabel: createWebsiteBuilderLocalizedDefault({
+			quantityLabel: createPhotonLocalizedDefault({
 				en: "Quantity",
 				ru: "Количество",
 			}),
-			buttonLabel: createWebsiteBuilderLocalizedDefault({
+			buttonLabel: createPhotonLocalizedDefault({
 				en: "Add to cart",
 				ru: "Добавить в корзину",
 			}),
-			successLabel: createWebsiteBuilderLocalizedDefault({
+			successLabel: createPhotonLocalizedDefault({
 				en: "Added to cart",
 				ru: "Добавлено в корзину",
 			}),

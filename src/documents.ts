@@ -1,9 +1,9 @@
 import type {
-	WebsiteBuilderBlock,
-	WebsiteBuilderDocument,
-} from "@init-modules/website-builder/public";
+	PhotonBlock,
+	PhotonDocument,
+} from "@init/photon/public";
 
-export type CommerceWebsiteBuilderLocale = "en" | "ru";
+export type CommercePhotonLocale = "en" | "ru";
 export type CommerceProfileStarterPresetId =
 	| "commerce-products-store"
 	| "commerce-services-store";
@@ -19,7 +19,7 @@ type CommerceStarterSource =
 
 const updatedAt = "2026-04-18T00:00:00.000Z";
 
-const copy = (locale: CommerceWebsiteBuilderLocale, en: string, ru: string) =>
+const copy = (locale: CommercePhotonLocale, en: string, ru: string) =>
 	locale === "ru" ? ru : en;
 
 const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T;
@@ -33,12 +33,12 @@ const resolveKindFromSource = (
 		: "products";
 
 const createCatalogBlock = (
-	locale: CommerceWebsiteBuilderLocale,
+	locale: CommercePhotonLocale,
 	kind: CommerceStorefrontKind,
 	path: CommerceCatalogBindingPath = kind,
-): WebsiteBuilderBlock => ({
+): PhotonBlock => ({
 	id: "commerce-product-grid",
-	module: "commerce-website-builder",
+	module: "commerce-photon",
 	type: "commerce-product-grid",
 	props: {
 		eyebrow: copy(locale, "Catalog", "Каталог"),
@@ -88,12 +88,12 @@ const createCatalogBlock = (
 });
 
 const createProductDetailBlocks = (
-	locale: CommerceWebsiteBuilderLocale,
+	locale: CommercePhotonLocale,
 	kind: CommerceStorefrontKind,
-): WebsiteBuilderBlock[] => [
+): PhotonBlock[] => [
 	{
 		id: "commerce-product-detail",
-		module: "commerce-website-builder",
+		module: "commerce-photon",
 		type: "commerce-product-detail",
 		props: {
 			eyebrow:
@@ -115,7 +115,7 @@ const createProductDetailBlocks = (
 	},
 	{
 		id: "commerce-add-to-cart",
-		module: "commerce-website-builder",
+		module: "commerce-photon",
 		type: "commerce-add-to-cart",
 		props: {
 			quantityLabel: copy(locale, "Quantity", "Количество"),
@@ -143,8 +143,8 @@ const createDocument = (
 	id: string,
 	name: string,
 	route: string,
-	blocks: WebsiteBuilderDocument["blocks"],
-): WebsiteBuilderDocument => ({
+	blocks: PhotonDocument["blocks"],
+): PhotonDocument => ({
 	id,
 	name,
 	route,
@@ -153,12 +153,12 @@ const createDocument = (
 });
 
 const createAccountShellBlock = (
-	locale: CommerceWebsiteBuilderLocale,
+	locale: CommercePhotonLocale,
 	id: string,
-	blocks: WebsiteBuilderBlock[],
-): WebsiteBuilderBlock => ({
+	blocks: PhotonBlock[],
+): PhotonBlock => ({
 	id,
-	module: "auth-website-builder",
+	module: "auth-photon",
 	type: "auth-account-shell",
 	props: {
 		eyebrow: copy(locale, "Account", "Личный кабинет"),
@@ -191,9 +191,9 @@ const createAccountShellBlock = (
 });
 
 export const createCommerceStorefrontDocument = (
-	locale: CommerceWebsiteBuilderLocale = "en",
+	locale: CommercePhotonLocale = "en",
 	kind: CommerceStorefrontKind = "products",
-): WebsiteBuilderDocument =>
+): PhotonDocument =>
 	createDocument(
 		`commerce-${kind}-home`,
 		kind === "services"
@@ -204,11 +204,11 @@ export const createCommerceStorefrontDocument = (
 	);
 
 export const createCommerceCatalogDocument = (
-	locale: CommerceWebsiteBuilderLocale = "en",
+	locale: CommercePhotonLocale = "en",
 	kind: CommerceStorefrontKind = "products",
 	path: CommerceCatalogBindingPath = kind,
 	route: "/products" | "/services" | "/catalog" = "/catalog",
-): WebsiteBuilderDocument =>
+): PhotonDocument =>
 	createDocument(
 		`commerce-${path}-catalog`,
 		path === "services"
@@ -221,9 +221,9 @@ export const createCommerceCatalogDocument = (
 	);
 
 export const createCommerceProductTemplateDocument = (
-	locale: CommerceWebsiteBuilderLocale = "en",
+	locale: CommercePhotonLocale = "en",
 	kind: CommerceStorefrontKind = "products",
-): WebsiteBuilderDocument =>
+): PhotonDocument =>
 	createDocument(
 		`commerce-${kind}-detail-template`,
 		kind === "services"
@@ -234,12 +234,12 @@ export const createCommerceProductTemplateDocument = (
 	);
 
 export const createCommerceCartDocument = (
-	locale: CommerceWebsiteBuilderLocale = "en",
-): WebsiteBuilderDocument =>
+	locale: CommercePhotonLocale = "en",
+): PhotonDocument =>
 	createDocument("commerce-cart", copy(locale, "Cart", "Корзина"), "/cart", [
 		{
 			id: "commerce-cart-summary",
-			module: "commerce-website-builder",
+			module: "commerce-photon",
 			type: "commerce-cart-summary",
 			props: {
 				eyebrow: copy(locale, "Cart", "Корзина"),
@@ -259,8 +259,8 @@ export const createCommerceCartDocument = (
 	]);
 
 export const createCommerceCheckoutDocument = (
-	locale: CommerceWebsiteBuilderLocale = "en",
-): WebsiteBuilderDocument =>
+	locale: CommercePhotonLocale = "en",
+): PhotonDocument =>
 	createDocument(
 		"commerce-checkout",
 		copy(locale, "Checkout", "Оформление заказа"),
@@ -268,7 +268,7 @@ export const createCommerceCheckoutDocument = (
 		[
 			{
 				id: "commerce-checkout-form",
-				module: "commerce-website-builder",
+				module: "commerce-photon",
 				type: "commerce-checkout-form",
 				props: {
 					eyebrow: copy(locale, "Checkout", "Оформление"),
@@ -305,8 +305,8 @@ export const createCommerceCheckoutDocument = (
 	);
 
 export const createCommerceAccountOrdersDocument = (
-	locale: CommerceWebsiteBuilderLocale = "en",
-): WebsiteBuilderDocument =>
+	locale: CommercePhotonLocale = "en",
+): PhotonDocument =>
 	createDocument(
 		"commerce-account-orders",
 		copy(locale, "Account Orders", "Заказы в личном кабинете"),
@@ -315,7 +315,7 @@ export const createCommerceAccountOrdersDocument = (
 			createAccountShellBlock(locale, "commerce-account-orders-shell", [
 				{
 					id: "commerce-order-list",
-					module: "commerce-website-builder",
+					module: "commerce-photon",
 					type: "commerce-order-list",
 					props: {
 						eyebrow: copy(locale, "Account", "Личный кабинет"),
@@ -338,7 +338,7 @@ export const createCommerceAccountOrdersDocument = (
 		],
 	);
 
-const createPageEntry = (document: WebsiteBuilderDocument) => ({
+const createPageEntry = (document: PhotonDocument) => ({
 	document: clone(document),
 	settings: {
 		page: {
@@ -359,7 +359,7 @@ const createPageEntry = (document: WebsiteBuilderDocument) => ({
 });
 
 const createSiteRegionDocument = (
-	locale: CommerceWebsiteBuilderLocale,
+	locale: CommercePhotonLocale,
 	key: "header" | "footer",
 	kind: CommerceStorefrontKind,
 ) =>
@@ -371,7 +371,7 @@ const createSiteRegionDocument = (
 				[
 					{
 						id: "site-header-shell",
-						module: "website-builder-system",
+						module: "photon-system",
 						type: "site-header-shell",
 						props: {
 							variant: "commerce-inline",
@@ -431,7 +431,7 @@ const createSiteRegionDocument = (
 				[
 					{
 						id: "site-footer-shell",
-						module: "website-builder-system",
+						module: "photon-system",
 						type: "site-footer-shell",
 						props: {
 							variant: "classic-dark",
@@ -496,7 +496,7 @@ const createSiteRegionDocument = (
 			);
 
 export const createCommerceStarterProfileTree = (
-	locale: CommerceWebsiteBuilderLocale,
+	locale: CommercePhotonLocale,
 	source: CommerceStarterSource,
 ) => {
 	const kind = resolveKindFromSource(source);
@@ -552,7 +552,7 @@ export const createCommerceStarterProfileTree = (
 			},
 		},
 		meta: {
-			source: "commerce-website-builder-starter",
+			source: "commerce-photon-starter",
 		},
 	};
 };
@@ -597,7 +597,7 @@ export const commerceDesignTemplates = [
 	},
 ] as const;
 
-export const commerceWebsiteBuilderDocuments = {
+export const commercePhotonDocuments = {
 	"commerce-products-template": createCommerceStorefrontDocument(
 		"en",
 		"products",

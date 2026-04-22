@@ -4,18 +4,18 @@ import {
 	type CommerceOrder,
 	createCommerceClient,
 	getCommerceRequest,
-} from "@init-modules/commerce";
+} from "@init/commerce";
 import {
-	createWebsiteBuilderLocalizedDefault,
-	defineWebsiteBuilderBlockDefinition,
+	createPhotonLocalizedDefault,
+	definePhotonBlockDefinition,
 	EditableText,
 	EditableTextarea,
-	useWebsiteBuilder,
-	useWebsiteBuilderI18n,
-	type WebsiteBuilderBlockComponentProps,
-	type WebsiteBuilderBlockDefinition,
-	WebsiteBuilderLink,
-} from "@init-modules/website-builder/public";
+	usePhoton,
+	usePhotonI18n,
+	type PhotonBlockComponentProps,
+	type PhotonBlockDefinition,
+	PhotonLink,
+} from "@init/photon/public";
 import { useEffect, useMemo, useState } from "react";
 import { commerceBlockClassNames as cx, formatCommerceMoney } from "./shared";
 
@@ -35,9 +35,9 @@ type CommerceOrderListProps = {
 
 const CommerceOrderList = ({
 	block,
-}: WebsiteBuilderBlockComponentProps<CommerceOrderListProps>) => {
-	const { mode, requestAuth, resources } = useWebsiteBuilder();
-	const { contentLocale } = useWebsiteBuilderI18n();
+}: PhotonBlockComponentProps<CommerceOrderListProps>) => {
+	const { mode, requestAuth, resources } = usePhoton();
+	const { contentLocale } = usePhotonI18n();
 	const authResource = resources.auth as
 		| { user?: null | Record<string, unknown> }
 		| undefined;
@@ -120,7 +120,7 @@ const CommerceOrderList = ({
 						{orders.map((order) => (
 							<div
 								key={order.id}
-								className="grid gap-4 border-b border-[color:var(--wb-site-border)] p-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto]"
+								className="grid gap-4 border-b border-[color:var(--photon-site-border)] p-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto]"
 							>
 								<div className="min-w-0">
 									<div className="flex flex-wrap items-center gap-2">
@@ -142,7 +142,7 @@ const CommerceOrderList = ({
 											{order.items.slice(0, 4).map((item) => (
 												<span
 													key={item.id}
-													className={`rounded-full border border-[color:var(--wb-site-border)] px-3 py-1 text-xs ${cx.mutedText}`}
+													className={`rounded-full border border-[color:var(--photon-site-border)] px-3 py-1 text-xs ${cx.mutedText}`}
 												>
 													{item.name ?? item.sku ?? item.catalog_item_id}
 												</span>
@@ -179,12 +179,12 @@ const CommerceOrderList = ({
 							path="emptyBody"
 							className={`mt-3 text-sm leading-7 ${cx.mutedText}`}
 						/>
-						<WebsiteBuilderLink
+						<PhotonLink
 							href={block.props.catalogHref}
 							className={`mt-6 ${cx.secondaryButton}`}
 						>
 							{block.props.catalogLabel}
-						</WebsiteBuilderLink>
+						</PhotonLink>
 					</div>
 				)}
 			</div>
@@ -192,49 +192,49 @@ const CommerceOrderList = ({
 	);
 };
 
-export const commerceOrderListDefinition: WebsiteBuilderBlockDefinition<CommerceOrderListProps> =
-	defineWebsiteBuilderBlockDefinition<CommerceOrderListProps>({
+export const commerceOrderListDefinition: PhotonBlockDefinition<CommerceOrderListProps> =
+	definePhotonBlockDefinition<CommerceOrderListProps>({
 		type: "commerce-order-list",
 		label: "Commerce Order List",
-		labelKey: "commerceWebsiteBuilder.orderList.label",
+		labelKey: "commercePhoton.orderList.label",
 		description: "Current customer order history for account pages.",
-		descriptionKey: "commerceWebsiteBuilder.orderList.description",
+		descriptionKey: "commercePhoton.orderList.description",
 		category: "Commerce",
 		icon: "receipt",
 		defaults: {
-			eyebrow: createWebsiteBuilderLocalizedDefault({
+			eyebrow: createPhotonLocalizedDefault({
 				en: "Account",
 				ru: "Личный кабинет",
 			}),
-			title: createWebsiteBuilderLocalizedDefault({
+			title: createPhotonLocalizedDefault({
 				en: "Your orders",
 				ru: "Ваши заказы",
 			}),
-			emptyTitle: createWebsiteBuilderLocalizedDefault({
+			emptyTitle: createPhotonLocalizedDefault({
 				en: "No orders yet",
 				ru: "Заказов пока нет",
 			}),
-			emptyBody: createWebsiteBuilderLocalizedDefault({
+			emptyBody: createPhotonLocalizedDefault({
 				en: "Checkout your first cart to see order history here.",
 				ru: "Оформите первую корзину, чтобы увидеть историю заказов.",
 			}),
-			orderLabel: createWebsiteBuilderLocalizedDefault({
+			orderLabel: createPhotonLocalizedDefault({
 				en: "Order",
 				ru: "Заказ",
 			}),
-			totalLabel: createWebsiteBuilderLocalizedDefault({
+			totalLabel: createPhotonLocalizedDefault({
 				en: "Total",
 				ru: "Итого",
 			}),
-			itemCountLabel: createWebsiteBuilderLocalizedDefault({
+			itemCountLabel: createPhotonLocalizedDefault({
 				en: "items",
 				ru: "позиций",
 			}),
-			authLabel: createWebsiteBuilderLocalizedDefault({
+			authLabel: createPhotonLocalizedDefault({
 				en: "Sign in",
 				ru: "Войти",
 			}),
-			catalogLabel: createWebsiteBuilderLocalizedDefault({
+			catalogLabel: createPhotonLocalizedDefault({
 				en: "Open catalog",
 				ru: "Открыть каталог",
 			}),

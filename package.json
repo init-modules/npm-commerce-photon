@@ -8,15 +8,25 @@
 	"types": "./src/index.ts",
 	"exports": {
 		".": "./src/index.ts",
+		"./client": "./src/client.tsx",
 		"./public": "./src/public.tsx",
-		"./documents": "./src/documents.ts"
+		"./documents": "./src/documents.ts",
+		"./nextjs": "./src/nextjs.ts"
 	},
 	"peerDependencies": {
 		"@init-modules/commerce": "^0.1.0",
+		"@init-modules/next-data-flow": "^0.1.0",
 		"@init-modules/ui": "^0.1.0",
 		"@init-modules/website-builder": "^0.1.0",
+		"lucide-react": "^0.556.0",
+		"next": "^16.0.0",
 		"react": "^19.0.0",
 		"react-dom": "^19.0.0"
+	},
+	"peerDependenciesMeta": {
+		"next": {
+			"optional": true
+		}
 	},
 	"dependencies": {
 		"@types/lodash-es": "^4.17.12",
@@ -25,10 +35,14 @@
 	},
 	"devDependencies": {
 		"@init-modules/commerce": "file:../commerce",
+		"@init-modules/next-data-flow": "file:../../next-data-flow",
 		"@init-modules/ui": "file:../../ui-foundation/ui",
 		"@init-modules/website-builder": "file:../../website-builder-foundation/website-builder",
+		"@types/node": "^20.19.39",
 		"@types/react": "^19.2.14",
 		"@types/react-dom": "^19.2.3",
+		"lucide-react": "^0.556.0",
+		"next": "16.0.8",
 		"typescript": "^5.9.3"
 	},
 	"websiteBuilder": {

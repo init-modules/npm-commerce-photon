@@ -6,19 +6,19 @@ import {
 	getCommerceRequest,
 } from "@init/commerce";
 import { useCommerceCartStore } from "@init/commerce/client";
-import { Counter } from "@init/ui";
 import {
 	createPhotonLocalizedDefault,
 	definePhotonBlockDefinition,
 	EditableText,
 	EditableTextarea,
-	usePhoton,
-	usePhotonI18n,
-	usePhotonValueAtPath,
 	type PhotonBlockComponentProps,
 	type PhotonBlockDefinition,
 	PhotonLink,
+	usePhoton,
+	usePhotonI18n,
+	usePhotonValueAtPath,
 } from "@init/photon/public";
+import { Counter } from "@init/ui";
 import {
 	type CSSProperties,
 	useCallback,
@@ -222,9 +222,12 @@ const CommerceProductGrid = ({
 
 	const syncItemQuantity = useMemo(
 		() =>
-			debounceCallback((item: CommerceCatalogItemView, nextQuantity: number) => {
-				void syncItemQuantityNow(item, nextQuantity);
-			}, 350),
+			debounceCallback(
+				(item: CommerceCatalogItemView, nextQuantity: number) => {
+					void syncItemQuantityNow(item, nextQuantity);
+				},
+				350,
+			),
 		[syncItemQuantityNow],
 	);
 

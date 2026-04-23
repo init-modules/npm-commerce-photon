@@ -1,20 +1,17 @@
 "use client";
 
-import {
-	createCommerceClient,
-	getCommerceRequest,
-} from "@init/commerce";
+import { createCommerceClient, getCommerceRequest } from "@init/commerce";
 import { useCommerceCartStore } from "@init/commerce/client";
-import { Counter } from "@init/ui";
 import {
 	createPhotonLocalizedDefault,
 	definePhotonBlockDefinition,
-	usePhoton,
-	usePhotonValueAtPath,
 	type PhotonBlockComponentProps,
 	type PhotonBlockDefinition,
 	PhotonLink,
+	usePhoton,
+	usePhotonValueAtPath,
 } from "@init/photon/public";
+import { Counter } from "@init/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 import { debounceCallback } from "../helpers/debounce";
@@ -54,8 +51,10 @@ const CommerceAddToCart = ({
 	block,
 }: PhotonBlockComponentProps<CommerceAddToCartProps>) => {
 	const { mode } = usePhoton();
-	const product = normalizeCommerceProduct(
-		usePhotonValueAtPath(block.id, "product"),
+	const rawProduct = usePhotonValueAtPath(block.id, "product");
+	const product = useMemo(
+		() => normalizeCommerceProduct(rawProduct),
+		[rawProduct],
 	);
 	const productId = product?.id ?? null;
 	const { cart, setCart } = useCommerceCartStore(
@@ -210,7 +209,10 @@ const CommerceAddToCart = ({
 		[syncQuantity],
 	);
 
-	const queueQuantity = (nextQuantity: number) => {
+	const queueQuantity = (
+		nextQuantity: number,
+		options: { immediate?: boolean } = {},
+	) => {
 		if (disabled) {
 			return;
 		}
@@ -221,6 +223,11 @@ const CommerceAddToCart = ({
 				: { id: "", quantity: nextQuantity },
 		);
 		desiredQuantityRef.current = nextQuantity;
+		if (options.immediate) {
+			void syncQuantityNow(nextQuantity);
+			return;
+		}
+
 		syncQuantity(nextQuantity);
 	};
 
@@ -264,7 +271,7 @@ const CommerceAddToCart = ({
 						<button
 							type="button"
 							disabled={disabled}
-							onClick={() => queueQuantity(1)}
+							onClick={() => queueQuantity(1, { immediate: true })}
 							className={cx.primaryButton}
 						>
 							{status === "loading" ? loadingLabel : block.props.buttonLabel}

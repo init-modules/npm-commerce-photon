@@ -2,6 +2,7 @@ import type {
 	CommerceCart,
 	CommerceCatalogItem,
 	CommerceCatalogItemView,
+	CommerceOrder,
 } from "@init/commerce";
 import {
 	commerceCartSnapshotKey,
@@ -13,6 +14,7 @@ import {
 	defineNextDataServerResource,
 } from "@init/next-data-flow/server";
 import type {
+	PhotonBlock,
 	PhotonDocument,
 	PhotonResources,
 	PhotonSearchResult,
@@ -53,9 +55,7 @@ const getCommerceApiResponse = <T>(
 		...config,
 	});
 
-export const configureCommercePhotonServer = (
-	api: CommercePhotonApiClient,
-) => {
+export const configureCommercePhotonServer = (api: CommercePhotonApiClient) => {
 	commercePhotonApi = api;
 	configureCommerceRequest(createAxiosCommerceRequest(api));
 };
@@ -92,6 +92,36 @@ const hasCommerceBinding = (document: PhotonDocument) =>
 				binding.source.startsWith("commerce"),
 			),
 	);
+
+const findCommerceBlocks = (
+	blocks: PhotonBlock[],
+	predicate: (block: PhotonBlock) => boolean,
+): PhotonBlock[] =>
+	blocks.flatMap((block) => [
+		...(predicate(block) ? [block] : []),
+		...(block.areas ?? []).flatMap((area) =>
+			findCommerceBlocks(area.blocks, predicate),
+		),
+	]);
+
+const getCommerceOrderListBlocks = (document: PhotonDocument) =>
+	findCommerceBlocks(
+		document.blocks,
+		(block) =>
+			block.module === "commerce-photon" &&
+			block.type === "commerce-order-list",
+	);
+
+const resolveCommerceOrderListLimit = (document: PhotonDocument) => {
+	const rawLimit = getCommerceOrderListBlocks(document)[0]?.props.limit;
+	const numericLimit = typeof rawLimit === "number" ? rawLimit : 20;
+
+	if (!Number.isFinite(numericLimit)) {
+		return 20;
+	}
+
+	return Math.min(50, Math.max(1, Math.floor(numericLimit)));
+};
 
 const resolveCommerceStorefrontKind = (
 	document: PhotonDocument,
@@ -149,15 +179,14 @@ const toCommerceCatalogItemView = (
 });
 
 const listCommerceCatalogItems = cache(async (search?: string) => {
-	const response = await getCommerceApiResponse<{ data: CommerceCatalogItem[] }>(
-		"/commerce/catalog/items",
-		{
-			params: {
-				search: search?.trim() || undefined,
-			},
-			validateStatus: () => true,
+	const response = await getCommerceApiResponse<{
+		data: CommerceCatalogItem[];
+	}>("/commerce/catalog/items", {
+		params: {
+			search: search?.trim() || undefined,
 		},
-	);
+		validateStatus: () => true,
+	});
 
 	if (response.status === 404) {
 		return [];
@@ -187,7 +216,8 @@ const getCommerceCartSummary = cache(async () => {
 	if (
 		response.status === 401 ||
 		response.status === 403 ||
-		response.status === 404
+		response.status === 404 ||
+		isMissingCommerceActorResponse(response)
 	) {
 		return null;
 	}
@@ -204,6 +234,59 @@ const getCommerceCartSummary = cache(async () => {
 
 	return response.data.data;
 });
+
+const listCommerceOrders = cache(async (limit: number) => {
+	const response = await getCommerceApiResponse<{ data: CommerceOrder[] }>(
+		"/commerce/order/v1/orders",
+		{
+			params: {
+				limit,
+			},
+			validateStatus: () => true,
+		},
+	);
+
+	if (
+		response.status === 401 ||
+		response.status === 403 ||
+		response.status === 404 ||
+		isMissingCommerceActorResponse(response)
+	) {
+		return [];
+	}
+
+	if (response.status >= 400) {
+		throw new Error(
+			`Commerce orders request failed with HTTP ${response.status}`,
+		);
+	}
+
+	if (!Array.isArray(response.data?.data)) {
+		throw new Error("Commerce orders response is missing a data array");
+	}
+
+	return response.data.data;
+});
+
+const isMissingCommerceActorResponse = (response: {
+	data?: unknown;
+	status: number;
+}) => {
+	if (response.status !== 422) {
+		return false;
+	}
+
+	const data = response.data as
+		| {
+				errors?: {
+					actor?: unknown;
+				};
+		  }
+		| null
+		| undefined;
+
+	return Array.isArray(data?.errors?.actor);
+};
 
 const listCommerceCatalogItemsForSearch = async (search: string) => {
 	try {
@@ -239,6 +322,20 @@ const getOptionalCommerceCartSummary = async () => {
 	} catch (error) {
 		if (error instanceof Error) {
 			throw new Error(`Commerce cart resource failed: ${error.message}`, {
+				cause: error,
+			});
+		}
+
+		throw error;
+	}
+};
+
+const listOptionalCommerceOrders = async (limit: number) => {
+	try {
+		return await listCommerceOrders(limit);
+	} catch (error) {
+		if (error instanceof Error) {
+			throw new Error(`Commerce orders resource failed: ${error.message}`, {
 				cause: error,
 			});
 		}
@@ -378,6 +475,16 @@ export const withCommerceResources = async <TPage extends CommerceResolvedPage>(
 				slug,
 			};
 		}
+	}
+
+	if (getCommerceOrderListBlocks(page.document).length > 0) {
+		const limit = resolveCommerceOrderListLimit(page.document);
+
+		nextResources.commerceOrders = {
+			orders: await listOptionalCommerceOrders(limit),
+			status: "ready",
+			limit,
+		};
 	}
 
 	return {

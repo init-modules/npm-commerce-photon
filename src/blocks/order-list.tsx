@@ -33,6 +33,33 @@ type CommerceOrderListProps = {
 	limit: number;
 };
 
+const normalizeCommerceOrders = (value: unknown): CommerceOrder[] | null => {
+	const rawOrders =
+		Array.isArray(value)
+			? value
+			: typeof value === "object" && value !== null
+				? (value as { orders?: unknown }).orders
+				: null;
+
+	if (!Array.isArray(rawOrders)) {
+		return null;
+	}
+
+	return rawOrders.filter((order): order is CommerceOrder => {
+		if (typeof order !== "object" || order === null) {
+			return false;
+		}
+
+		const candidate = order as Partial<CommerceOrder>;
+
+		return (
+			typeof candidate.id === "string" &&
+			typeof candidate.number === "string" &&
+			Array.isArray(candidate.items)
+		);
+	});
+};
+
 const CommerceOrderList = ({
 	block,
 }: PhotonBlockComponentProps<CommerceOrderListProps>) => {
@@ -42,14 +69,28 @@ const CommerceOrderList = ({
 		| { user?: null | Record<string, unknown> }
 		| undefined;
 	const isAuthenticated = Boolean(authResource?.user);
-	const [orders, setOrders] = useState<CommerceOrder[]>([]);
-	const [status, setStatus] = useState<"idle" | "loading" | "ready">("idle");
+	const resourceOrders = useMemo(
+		() => normalizeCommerceOrders(resources.commerceOrders),
+		[resources.commerceOrders],
+	);
+	const [orders, setOrders] = useState<CommerceOrder[]>(
+		() => resourceOrders ?? [],
+	);
+	const [status, setStatus] = useState<"idle" | "loading" | "ready">(() =>
+		resourceOrders ? "ready" : "idle",
+	);
 	const client = useMemo(() => createCommerceClient(getCommerceRequest()), []);
 
 	useEffect(() => {
 		if (mode !== "preview" || !isAuthenticated) {
 			setOrders([]);
 			setStatus("idle");
+			return;
+		}
+
+		if (resourceOrders) {
+			setOrders(resourceOrders);
+			setStatus("ready");
 			return;
 		}
 
@@ -78,7 +119,7 @@ const CommerceOrderList = ({
 		return () => {
 			alive = false;
 		};
-	}, [block.props.limit, client, isAuthenticated, mode]);
+	}, [block.props.limit, client, isAuthenticated, mode, resourceOrders]);
 
 	return (
 		<section className={`${cx.section} py-12`}>

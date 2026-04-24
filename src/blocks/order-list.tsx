@@ -2,8 +2,6 @@
 
 import {
 	type CommerceOrder,
-	createCommerceClient,
-	getCommerceRequest,
 } from "@init/commerce";
 import {
 	createPhotonLocalizedDefault,
@@ -17,6 +15,7 @@ import {
 	PhotonLink,
 } from "@init/photon/public";
 import { useEffect, useMemo, useState } from "react";
+import { useCommercePhotonClient } from "../client";
 import { commerceBlockClassNames as cx, formatCommerceMoney } from "./shared";
 
 type CommerceOrderListProps = {
@@ -79,7 +78,7 @@ const CommerceOrderList = ({
 	const [status, setStatus] = useState<"idle" | "loading" | "ready">(() =>
 		resourceOrders ? "ready" : "idle",
 	);
-	const client = useMemo(() => createCommerceClient(getCommerceRequest()), []);
+	const client = useCommercePhotonClient();
 
 	useEffect(() => {
 		if (mode !== "preview" || !isAuthenticated) {

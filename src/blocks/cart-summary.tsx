@@ -1,9 +1,5 @@
 "use client";
 
-import {
-	createCommerceClient,
-	getCommerceRequest,
-} from "@init/commerce";
 import { useCommerceCartStore } from "@init/commerce/client";
 import {
 	Breadcrumb,
@@ -28,6 +24,7 @@ import {
 import { X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { shallow } from "zustand/shallow";
+import { useCommercePhotonClient } from "../client";
 import { debounceCallback } from "../helpers/debounce";
 import {
 	commerceBlockClassNames as cx,
@@ -81,7 +78,7 @@ const CommerceCartSummary = ({
 		);
 	const isCartLoaded = cart !== null;
 	const desiredItemQuantitiesRef = useRef(new Map<string, number>());
-	const client = useMemo(() => createCommerceClient(getCommerceRequest()), []);
+	const client = useCommercePhotonClient();
 
 	useEffect(() => {
 		if (mode !== "preview") {

@@ -25,7 +25,7 @@ export const commerceBlockClassNames = {
 	input:
 		"h-11 rounded-lg border border-[color:var(--photon-site-border)] bg-[var(--photon-site-background)] px-3 text-base text-[var(--photon-site-text)] outline-none transition placeholder:text-[color-mix(in_oklab,var(--photon-site-muted-text)_72%,transparent)] focus:border-[var(--photon-site-accent)] disabled:cursor-not-allowed disabled:opacity-60",
 	primaryButton:
-		"inline-flex h-11 items-center justify-center rounded-lg bg-[var(--photon-site-accent)] px-5 text-sm font-semibold text-[var(--photon-site-background)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-[color-mix(in_oklab,var(--photon-site-border)_72%,var(--photon-site-surface))] disabled:text-[var(--photon-site-muted-text)]",
+		"inline-flex h-11 cursor-pointer items-center justify-center rounded-lg bg-[var(--photon-site-accent)] px-5 text-sm font-semibold text-[var(--photon-site-background)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:bg-[color-mix(in_oklab,var(--photon-site-border)_72%,var(--photon-site-surface))] disabled:text-[var(--photon-site-muted-text)]",
 	secondaryButton:
 		"inline-flex h-11 items-center justify-center rounded-lg border border-[color:var(--photon-site-border)] bg-[var(--photon-site-surface)] px-5 text-sm font-semibold text-[var(--photon-site-text)] transition hover:border-[var(--photon-site-accent)]",
 	card: "group flex min-w-0 flex-col overflow-hidden rounded-lg border border-[color:var(--photon-site-border)] bg-[color-mix(in_oklab,var(--photon-site-surface)_86%,var(--photon-site-background))] transition hover:border-[var(--photon-site-accent)] hover:bg-[var(--photon-site-surface)]",

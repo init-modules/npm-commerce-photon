@@ -1,6 +1,5 @@
 "use client";
 
-import { createCommerceClient, getCommerceRequest } from "@init/commerce";
 import { useCommerceCartStore } from "@init/commerce/client";
 import {
 	createPhotonLocalizedDefault,
@@ -14,6 +13,7 @@ import {
 import { Counter } from "@init/ui";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
+import { useCommercePhotonClient } from "../client";
 import { debounceCallback } from "../helpers/debounce";
 import {
 	commerceBlockClassNames as cx,
@@ -71,7 +71,7 @@ const CommerceAddToCart = ({
 	const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
 	const cartLineRef = useRef(cartLine);
 	const desiredQuantityRef = useRef<number | null>(null);
-	const client = useMemo(() => createCommerceClient(getCommerceRequest()), []);
+	const client = useCommercePhotonClient();
 	const interactive = mode === "preview";
 	const disabled = !interactive || !product;
 	const loadingLabel = block.props.buttonLabel;
@@ -310,7 +310,7 @@ export const commerceAddToCartDefinition: PhotonBlockDefinition<CommerceAddToCar
 				en: "Added to cart",
 				ru: "Добавлено в корзину",
 			}),
-			cartHref: "/cart",
+			cartHref: "/checkout?checkoutStep=cart",
 		},
 		bindings: {
 			product: {

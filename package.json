@@ -8,6 +8,7 @@
 	"types": "./src/index.ts",
 	"exports": {
 		".": "./src/index.ts",
+		"./app": "./src/app.ts",
 		"./client": "./src/client.tsx",
 		"./public": "./src/public.tsx",
 		"./documents": "./src/documents.ts",
@@ -15,9 +16,11 @@
 	},
 	"peerDependencies": {
 		"@init/commerce": "^0.1.0",
+		"@init/commerce-profile-templates": "^0.1.0",
 		"@init/next-data-flow": "^0.1.0",
-		"@init/ui": "^0.1.0",
 		"@init/photon": "^0.1.0",
+		"@init/photon-nextjs": "^0.1.0",
+		"@init/ui": "^0.1.0",
 		"lucide-react": "^0.556.0",
 		"next": "^16.0.0",
 		"react": "^19.0.0",
@@ -33,9 +36,11 @@
 	},
 	"devDependencies": {
 		"@init/commerce": "file:../commerce",
+		"@init/commerce-profile-templates": "file:../commerce-profile-templates",
 		"@init/next-data-flow": "file:../../next-data-flow",
 		"@init/ui": "file:../../ui-foundation/ui",
 		"@init/photon": "file:../../photon-foundation/photon",
+		"@init/photon-nextjs": "file:../../photon-foundation/photon-nextjs",
 		"@types/node": "^20.19.39",
 		"@types/react": "^19.2.14",
 		"@types/react-dom": "^19.2.3",

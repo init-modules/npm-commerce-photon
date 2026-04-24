@@ -1,10 +1,6 @@
 "use client";
 
-import {
-	type CommerceOrder,
-	createCommerceClient,
-	getCommerceRequest,
-} from "@init/commerce";
+import { type CommerceOrder } from "@init/commerce";
 import { useCommerceCartStore } from "@init/commerce/client";
 import {
 	Breadcrumb,
@@ -28,14 +24,18 @@ import {
 	EditableText,
 	EditableTextarea,
 	usePhoton,
+	usePhotonCanEdit,
 	usePhotonI18n,
+	usePhotonValueAtPath,
 	type PhotonBlockComponentProps,
 	type PhotonBlockDefinition,
 	PhotonLink,
 } from "@init/photon/public";
-import { X } from "lucide-react";
+import type { ElementType, HTMLAttributes } from "react";
+import { CheckCircle2, ReceiptText, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
+import { useCommercePhotonClient } from "../client";
 import { debounceCallback } from "../helpers/debounce";
 import {
 	type CommerceCheckoutStepKey,
@@ -61,6 +61,8 @@ type CommerceCheckoutFormProps = {
 	cartCheckoutLabel: string;
 	cartEmptyTitle: string;
 	cartEmptyBody: string;
+	cartCatalogLabel: string;
+	cartCatalogHref: string;
 	cartStepTitle: string;
 	cartStepDescription: string;
 	checkoutStepTitle: string;
@@ -177,6 +179,114 @@ const checkoutFormFieldsField = createPhotonFormFieldsField("fields", {
 	},
 });
 
+const createCartSummarySteps = (locale: string) =>
+	[
+		{
+			title: locale === "ru" ? "Корзина" : "Cart",
+			description: locale === "ru" ? "Проверьте позиции" : "Review items",
+		},
+		{
+			title: locale === "ru" ? "Оформление" : "Checkout",
+			description: locale === "ru" ? "Контакты и заказ" : "Contacts and order",
+		},
+		{
+			title: locale === "ru" ? "Готово" : "Done",
+			description: locale === "ru" ? "Заказ создан" : "Order placed",
+		},
+	] as const;
+
+const checkoutCartStepHref = "/checkout?checkoutStep=cart";
+
+const isLegacyCartPageHref = (href: string) => {
+	const [pathname] = href.split(/[?#]/);
+	const pathSegments = (pathname ?? "").split("/").filter(Boolean);
+
+	return pathSegments.length === 1 && pathSegments[0] === "cart";
+};
+
+const normalizeCheckoutCartHref = (href: unknown) => {
+	if (typeof href !== "string") {
+		return checkoutCartStepHref;
+	}
+
+	const normalizedHref = href.trim();
+
+	return normalizedHref && !isLegacyCartPageHref(normalizedHref)
+		? normalizedHref
+		: checkoutCartStepHref;
+};
+
+type CheckoutTextProps = HTMLAttributes<HTMLElement> & {
+	blockId: string;
+	path: string;
+	as?: ElementType;
+	placeholder: string;
+};
+
+const CheckoutText = ({
+	blockId,
+	path,
+	as: Tag = "span",
+	placeholder,
+	className,
+	...rest
+}: CheckoutTextProps) => {
+	const canEdit = usePhotonCanEdit();
+	const value = usePhotonValueAtPath(blockId, path);
+	const hasValue =
+		typeof value === "string" ? value.trim() !== "" : value != null;
+
+	if (canEdit || hasValue) {
+		return (
+			<EditableText
+				blockId={blockId}
+				path={path}
+				as={Tag}
+				placeholder={placeholder}
+				className={className}
+				{...rest}
+			/>
+		);
+	}
+
+	return (
+		<Tag className={className} {...rest}>
+			{placeholder}
+		</Tag>
+	);
+};
+
+const CheckoutTextarea = ({
+	blockId,
+	path,
+	placeholder,
+	className,
+	...rest
+}: Omit<CheckoutTextProps, "as">) => {
+	const canEdit = usePhotonCanEdit();
+	const value = usePhotonValueAtPath(blockId, path);
+	const hasValue =
+		typeof value === "string" ? value.trim() !== "" : value != null;
+
+	if (canEdit || hasValue) {
+		return (
+			<EditableTextarea
+				blockId={blockId}
+				path={path}
+				placeholder={placeholder}
+				className={className}
+				{...rest}
+			/>
+		);
+	}
+
+	return (
+		<div className={className} {...rest}>
+			{placeholder}
+		</div>
+	);
+};
+
 const readCheckoutStepFromLocation = (): CommerceCheckoutStepKey | null => {
 	if (typeof window === "undefined") {
 		return null;
@@ -227,7 +337,7 @@ const CommerceCheckoutForm = ({
 		cart ? "idle" : "loading",
 	);
 	const desiredItemQuantitiesRef = useRef(new Map<string, number>());
-	const client = useMemo(() => createCommerceClient(getCommerceRequest()), []);
+	const client = useCommercePhotonClient();
 	const writeCheckoutStep = useCallback(
 		(nextIndex: number, method: "push" | "replace") => {
 			const boundedIndex = Math.max(
@@ -380,6 +490,7 @@ const CommerceCheckoutForm = ({
 			? "Добавьте товар из каталога, чтобы перейти к оформлению."
 			: "Add a catalog item to start checkout.",
 		cartEmptyTitle: ru ? "Корзина пуста" : "Your cart is empty",
+		cartCatalogLabel: ru ? "Назад в каталог" : "Back to catalog",
 		cartEyebrow: ru ? "Корзина" : "Cart",
 		cartStepDescription: ru ? "Проверьте позиции" : "Review items",
 		cartStepTitle: ru ? "Корзина" : "Cart",
@@ -434,7 +545,7 @@ const CommerceCheckoutForm = ({
 		{
 			disabled: Boolean(order),
 			title: (
-				<EditableText
+				<CheckoutText
 					blockId={block.id}
 					path="cartStepTitle"
 					placeholder={getFallbackText("cartStepTitle")}
@@ -442,7 +553,7 @@ const CommerceCheckoutForm = ({
 				/>
 			),
 			description: (
-				<EditableText
+				<CheckoutText
 					blockId={block.id}
 					path="cartStepDescription"
 					placeholder={getFallbackText("cartStepDescription")}
@@ -453,7 +564,7 @@ const CommerceCheckoutForm = ({
 		{
 			disabled: Boolean(order) || !hasItems,
 			title: (
-				<EditableText
+				<CheckoutText
 					blockId={block.id}
 					path="checkoutStepTitle"
 					placeholder={getFallbackText("checkoutStepTitle")}
@@ -461,7 +572,7 @@ const CommerceCheckoutForm = ({
 				/>
 			),
 			description: (
-				<EditableText
+				<CheckoutText
 					blockId={block.id}
 					path="checkoutStepDescription"
 					placeholder={getFallbackText("checkoutStepDescription")}
@@ -473,7 +584,7 @@ const CommerceCheckoutForm = ({
 			disabled: !order,
 			status: order ? "finish" : undefined,
 			title: (
-				<EditableText
+				<CheckoutText
 					blockId={block.id}
 					path="doneStepTitle"
 					placeholder={getFallbackText("doneStepTitle")}
@@ -481,7 +592,7 @@ const CommerceCheckoutForm = ({
 				/>
 			),
 			description: (
-				<EditableText
+				<CheckoutText
 					blockId={block.id}
 					path="doneStepDescription"
 					placeholder={getFallbackText("doneStepDescription")}
@@ -500,10 +611,13 @@ const CommerceCheckoutForm = ({
 	};
 	const isDoneStep = activeStep === "done";
 	const isCartStep = activeStep === "cart";
-	const cartHref =
-		typeof block.props.cartHref === "string" && block.props.cartHref.trim()
-			? block.props.cartHref
-			: "/cart";
+	const cartHref = normalizeCheckoutCartHref(block.props.cartHref);
+	const checkoutStepHref = "/checkout?checkoutStep=checkout";
+	const cartCatalogHref =
+		typeof block.props.cartCatalogHref === "string" &&
+		block.props.cartCatalogHref.trim()
+			? block.props.cartCatalogHref
+			: "/catalog";
 	const accountOrdersHref =
 		typeof block.props.accountOrdersHref === "string" &&
 		block.props.accountOrdersHref.trim()
@@ -512,6 +626,10 @@ const CommerceCheckoutForm = ({
 	const summaryItems = cart?.items ?? [];
 	const summaryCurrency = cart?.currency ?? order?.currency ?? "KZT";
 	const summaryTotal = cart?.total_amount ?? order?.total_amount ?? 0;
+	const orderItemNameLabel = contentLocale === "ru" ? "Наименование" : "Name";
+	const orderItemQuantityLabel =
+		contentLocale === "ru" ? "Количество" : "Quantity";
+	const orderItemPriceLabel = contentLocale === "ru" ? "Цена" : "Price";
 	const checkoutFields =
 		Array.isArray(block.props.fields) && block.props.fields.length > 0
 			? block.props.fields
@@ -587,12 +705,7 @@ const CommerceCheckoutForm = ({
 				className={`flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between ${cx.mutedSurface}`}
 			>
 				<div>
-					<EditableText
-						blockId={block.id}
-						path="summaryTotalLabel"
-						placeholder={getFallbackText("summaryTotalLabel")}
-						className={`block text-sm ${cx.mutedText}`}
-					/>
+					<div className={`text-sm ${cx.mutedText}`}>Total</div>
 					<div className="text-2xl font-semibold">
 						{formatCommerceMoney(
 							cart?.total_amount,
@@ -601,36 +714,36 @@ const CommerceCheckoutForm = ({
 						)}
 					</div>
 				</div>
-				<button
-					type="button"
-					onClick={() => pushCheckoutStep(1)}
+				<PhotonLink
+					href={checkoutStepHref}
+					onClick={(event) => {
+						event.preventDefault();
+						pushCheckoutStep(1);
+					}}
 					className={cx.primaryButton}
 				>
-					<EditableText
-						blockId={block.id}
-						path="cartCheckoutLabel"
-						placeholder={getFallbackText("cartCheckoutLabel")}
-						className="font-semibold"
-					/>
-				</button>
+					{getFallbackText("cartCheckoutLabel")}
+				</PhotonLink>
 			</div>
 		</div>
 	) : (
-		<div
-			className={`mt-8 rounded-lg bg-[color-mix(in_oklab,var(--photon-site-surface)_58%,var(--photon-site-background))] px-6 py-10 text-center`}
-		>
+		<div className={cx.empty}>
 			<EditableText
 				blockId={block.id}
 				path="cartEmptyTitle"
-				placeholder={getFallbackText("cartEmptyTitle")}
 				className={`text-lg font-semibold ${cx.strongText}`}
 			/>
 			<EditableTextarea
 				blockId={block.id}
 				path="cartEmptyBody"
-				placeholder={getFallbackText("cartEmptyBody")}
 				className={`mt-3 text-sm leading-7 ${cx.mutedText}`}
 			/>
+			<PhotonLink
+				href={cartCatalogHref}
+				className={`mt-6 ${cx.secondaryButton}`}
+			>
+				{getFallbackText("cartCatalogLabel")}
+			</PhotonLink>
 		</div>
 	);
 
@@ -638,36 +751,50 @@ const CommerceCheckoutForm = ({
 		<section className={`${cx.section} py-12`}>
 			<div className="mx-auto max-w-5xl">
 				<Breadcrumb className="mb-8">
-					<BreadcrumbList>
-						<BreadcrumbItem>
-							<PhotonLink href={cartHref}>
-								<EditableText
-									blockId={block.id}
-									path="breadcrumbCartLabel"
-									placeholder={getFallbackText("breadcrumbCartLabel")}
-									className="font-medium"
-								/>
-							</PhotonLink>
-						</BreadcrumbItem>
-						<BreadcrumbSeparator />
-						<BreadcrumbItem>
-							<BreadcrumbPage>
-								<EditableText
-									blockId={block.id}
-									path="breadcrumbCheckoutLabel"
-									placeholder={getFallbackText("breadcrumbCheckoutLabel")}
-									className="font-medium"
-								/>
-							</BreadcrumbPage>
-						</BreadcrumbItem>
-					</BreadcrumbList>
+					{isCartStep ? (
+						<BreadcrumbList>
+							<BreadcrumbItem>
+								<PhotonLink href={cartCatalogHref}>
+									{getFallbackText("cartCatalogLabel")}
+								</PhotonLink>
+							</BreadcrumbItem>
+							<BreadcrumbSeparator />
+							<BreadcrumbItem>
+								<BreadcrumbPage>{getFallbackText("cartTitle")}</BreadcrumbPage>
+							</BreadcrumbItem>
+						</BreadcrumbList>
+					) : (
+						<BreadcrumbList>
+							<BreadcrumbItem>
+								<PhotonLink href={cartHref}>
+									<CheckoutText
+										blockId={block.id}
+										path="breadcrumbCartLabel"
+										placeholder={getFallbackText("breadcrumbCartLabel")}
+										className="font-medium"
+									/>
+								</PhotonLink>
+							</BreadcrumbItem>
+							<BreadcrumbSeparator />
+							<BreadcrumbItem>
+								<BreadcrumbPage>
+									<CheckoutText
+										blockId={block.id}
+										path="breadcrumbCheckoutLabel"
+										placeholder={getFallbackText("breadcrumbCheckoutLabel")}
+										className="font-medium"
+									/>
+								</BreadcrumbPage>
+							</BreadcrumbItem>
+						</BreadcrumbList>
+					)}
 				</Breadcrumb>
 				<Steps
 					current={activeStepIndex}
 					className="mb-8"
-					items={steps}
+					items={isCartStep ? createCartSummarySteps(contentLocale) : steps}
 					onChange={
-						mode === "preview"
+						mode === "preview" && !isCartStep
 							? (nextStep) => {
 									if (order && nextStep !== 2) {
 										return;
@@ -698,13 +825,11 @@ const CommerceCheckoutForm = ({
 								<EditableText
 									blockId={block.id}
 									path="cartEyebrow"
-									placeholder={getFallbackText("cartEyebrow")}
 									className={cx.eyebrow}
 								/>
 								<EditableText
 									blockId={block.id}
 									path="cartTitle"
-									placeholder={getFallbackText("cartTitle")}
 									as="h1"
 									className="mt-3 block text-3xl font-semibold leading-tight sm:text-5xl"
 								/>
@@ -749,111 +874,124 @@ const CommerceCheckoutForm = ({
 
 						{order ? (
 							<div className="mt-8 grid gap-6">
-								<div className={`p-5 ${cx.successPanel}`}>
-									<EditableTextarea
-										blockId={block.id}
-										path="successBody"
-										placeholder={getFallbackText("successBody")}
-										className={`max-w-2xl text-base leading-7 ${cx.mutedText}`}
-									/>
-									<div className="mt-5">
+								<div className="overflow-hidden rounded-lg border border-[color-mix(in_oklab,var(--photon-site-accent)_58%,var(--photon-site-border))] bg-[linear-gradient(135deg,color-mix(in_oklab,var(--photon-site-accent)_18%,var(--photon-site-surface)),color-mix(in_oklab,var(--photon-site-surface)_82%,var(--photon-site-background)))]">
+									<div className="grid gap-5 p-5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:p-6">
+										<div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--photon-site-accent)] text-[var(--photon-site-background)]">
+											<CheckCircle2 className="h-7 w-7" />
+										</div>
+										<div className="min-w-0">
+											<EditableTextarea
+												blockId={block.id}
+												path="successBody"
+												placeholder={getFallbackText("successBody")}
+												className={`max-w-2xl text-base leading-7 ${cx.mutedText}`}
+											/>
+											<div className="mt-4 flex flex-wrap items-center gap-2">
+												<span className="rounded-full border border-[color-mix(in_oklab,var(--photon-site-accent)_42%,var(--photon-site-border))] bg-[color-mix(in_oklab,var(--photon-site-background)_64%,transparent)] px-3 py-1 text-xs font-semibold text-[var(--photon-site-accent)]">
+													{order.number}
+												</span>
+												<span className={`text-xs ${cx.mutedText}`}>
+													{order.status ?? getFallbackText("doneStepTitle")}
+												</span>
+											</div>
+										</div>
 										<PhotonLink
 											href={accountOrdersHref}
 											className={cx.primaryButton}
 										>
-											<EditableText
-												blockId={block.id}
-												path="trackOrderLabel"
-												placeholder={getFallbackText("trackOrderLabel")}
-												className="font-semibold"
-											/>
+											{getFallbackText("trackOrderLabel")}
 										</PhotonLink>
 									</div>
 								</div>
+
 								<div className={`overflow-hidden ${cx.surface}`}>
-									<div className="border-b border-[color:var(--photon-site-border)] p-5">
-										<EditableText
-											blockId={block.id}
-											path="orderDetailsTitle"
-											placeholder={getFallbackText("orderDetailsTitle")}
-											className={`text-lg font-semibold ${cx.strongText}`}
-										/>
-										<dl className="mt-5 grid gap-3 text-sm">
-											<div className="flex w-full items-start justify-between gap-6">
-												<dt className={cx.mutedText}>
-													<EditableText
-														blockId={block.id}
-														path="orderNumberLabel"
-														placeholder={getFallbackText("orderNumberLabel")}
-													/>
-												</dt>
-												<dd
-													className={`max-w-[65%] text-right font-semibold ${cx.strongText}`}
-												>
-													{order.number}
-												</dd>
+									<div className="flex flex-col gap-5 border-b border-[color:var(--photon-site-border)] p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
+										<div className="flex min-w-0 items-start gap-3">
+											<div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[color:var(--photon-site-border)] bg-[color-mix(in_oklab,var(--photon-site-background)_72%,transparent)] text-[var(--photon-site-accent)]">
+												<ReceiptText className="h-5 w-5" />
 											</div>
-											<div className="flex w-full items-start justify-between gap-6">
-												<dt className={cx.mutedText}>
-													<EditableText
-														blockId={block.id}
-														path="orderStatusLabel"
-														placeholder={getFallbackText("orderStatusLabel")}
-													/>
-												</dt>
-												<dd
-													className={`max-w-[65%] text-right font-semibold ${cx.strongText}`}
-												>
-													{order.status ?? getFallbackText("doneStepTitle")}
-												</dd>
+											<div className="min-w-0">
+												<EditableText
+													blockId={block.id}
+													path="orderDetailsTitle"
+													placeholder={getFallbackText("orderDetailsTitle")}
+													className={`text-lg font-semibold ${cx.strongText}`}
+												/>
+												<div className={`mt-1 text-sm ${cx.mutedText}`}>
+													{order.items.length}{" "}
+													{contentLocale === "ru" ? "позиций" : "items"}
+												</div>
 											</div>
-											<div className="flex w-full items-start justify-between gap-6">
-												<dt className={cx.mutedText}>
-													<EditableText
-														blockId={block.id}
-														path="orderTotalLabel"
-														placeholder={getFallbackText("orderTotalLabel")}
-													/>
-												</dt>
-												<dd
-													className={`max-w-[65%] text-right font-semibold ${cx.strongText}`}
-												>
-													{formatCommerceMoney(
-														order.total_amount,
-														order.currency,
-														contentLocale,
-													)}
-												</dd>
+										</div>
+										<div className="text-left sm:text-right">
+											<div className={`text-sm ${cx.mutedText}`}>
+												<EditableText
+													blockId={block.id}
+													path="orderTotalLabel"
+													placeholder={getFallbackText("orderTotalLabel")}
+												/>
 											</div>
-										</dl>
+											<div
+												className={`mt-1 text-2xl font-semibold ${cx.strongText}`}
+											>
+												{formatCommerceMoney(
+													order.total_amount,
+													order.currency,
+													contentLocale,
+												)}
+											</div>
+										</div>
 									</div>
+
 									<div className="divide-y divide-[color:var(--photon-site-border)]">
+										<div
+											className={`hidden grid-cols-[minmax(0,1fr)_9rem_12rem] gap-4 px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] sm:grid ${cx.mutedText}`}
+										>
+											<div>{orderItemNameLabel}</div>
+											<div>{orderItemQuantityLabel}</div>
+											<div className="text-right">{orderItemPriceLabel}</div>
+										</div>
 										{order.items.map((item) => (
 											<div
 												key={item.id}
-												className="flex flex-col gap-3 p-5 sm:flex-row sm:items-start sm:justify-between"
+												className="grid gap-4 p-5 sm:grid-cols-[minmax(0,1fr)_9rem_12rem] sm:items-center"
 											>
 												<div className="min-w-0">
 													<div className={`font-semibold ${cx.strongText}`}>
 														{item.name}
 													</div>
-													<div className={`mt-1 text-sm ${cx.mutedText}`}>
-														{item.quantity} x{" "}
-														{formatCommerceMoney(
-															item.unit_price,
-															order.currency,
-															contentLocale,
-														)}
+												</div>
+												<div className="flex items-center justify-between gap-4 sm:block">
+													<div className={`text-sm sm:hidden ${cx.mutedText}`}>
+														{orderItemQuantityLabel}
+													</div>
+													<div className={`font-semibold ${cx.strongText}`}>
+														{item.quantity}
 													</div>
 												</div>
-												<div
-													className={`shrink-0 text-right font-semibold ${cx.strongText}`}
-												>
-													{formatCommerceMoney(
-														item.line_total,
-														order.currency,
-														contentLocale,
-													)}
+												<div className="flex items-center justify-between gap-4 sm:block sm:text-right">
+													<div className={`text-sm sm:hidden ${cx.mutedText}`}>
+														{orderItemPriceLabel}
+													</div>
+													<div>
+														<div
+															className={`text-lg font-semibold ${cx.strongText}`}
+														>
+															{formatCommerceMoney(
+																item.line_total,
+																order.currency,
+																contentLocale,
+															)}
+														</div>
+														<div className={`mt-1 text-xs ${cx.mutedText}`}>
+															{formatCommerceMoney(
+																item.unit_price,
+																order.currency,
+																contentLocale,
+															)}{" "}
+															/ {contentLocale === "ru" ? "шт." : "unit"}
+														</div>
+													</div>
 												</div>
 											</div>
 										))}
@@ -1011,6 +1149,11 @@ export const commerceCheckoutFormDefinition: PhotonBlockDefinition<CommerceCheck
 				en: "Add a catalog item to start checkout.",
 				ru: "Добавьте товар из каталога, чтобы перейти к оформлению.",
 			}),
+			cartCatalogLabel: createPhotonLocalizedDefault({
+				en: "Back to catalog",
+				ru: "Назад в каталог",
+			}),
+			cartCatalogHref: "/catalog",
 			cartStepTitle: createPhotonLocalizedDefault({
 				en: "Cart",
 				ru: "Корзина",
@@ -1129,7 +1272,7 @@ export const commerceCheckoutFormDefinition: PhotonBlockDefinition<CommerceCheck
 				en: "Track order status in your account",
 				ru: "Отслеживать статус заказа в личном кабинете",
 			}),
-			cartHref: "/cart",
+			cartHref: "/checkout?checkoutStep=cart",
 			accountOrdersHref: "/account/orders",
 		},
 		fields: [
@@ -1181,6 +1324,20 @@ export const commerceCheckoutFormDefinition: PhotonBlockDefinition<CommerceCheck
 				kind: "textarea",
 				group: "content",
 				localization: "localized",
+			},
+			{
+				path: "cartCatalogLabel",
+				label: "Cart catalog label",
+				kind: "text",
+				group: "content",
+				localization: "localized",
+			},
+			{
+				path: "cartCatalogHref",
+				label: "Cart catalog URL",
+				kind: "text",
+				group: "data",
+				localization: "shared",
 			},
 			{
 				path: "cartStepTitle",
@@ -1364,6 +1521,7 @@ export const commerceCheckoutFormDefinition: PhotonBlockDefinition<CommerceCheck
 				"body",
 				"breadcrumbCartLabel",
 				"breadcrumbCheckoutLabel",
+				"cartCatalogLabel",
 				"cartCheckoutLabel",
 				"cartEmptyBody",
 				"cartEmptyTitle",
@@ -1401,6 +1559,7 @@ export const commerceCheckoutFormDefinition: PhotonBlockDefinition<CommerceCheck
 			],
 			shared: [
 				"accountOrdersHref",
+				"cartCatalogHref",
 				"cartHref",
 				"fields.*.id",
 				"fields.*.locked",

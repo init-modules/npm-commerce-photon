@@ -1,7 +1,4 @@
-import type {
-	PhotonBlock,
-	PhotonDocument,
-} from "@init/photon/public";
+import type { PhotonBlock, PhotonDocument } from "@init/photon/public";
 
 export type CommercePhotonLocale = "en" | "ru";
 export type CommerceProfileStarterPresetId =
@@ -18,6 +15,7 @@ type CommerceStarterSource =
 	| { type: "template"; sourceId?: string };
 
 const updatedAt = "2026-04-18T00:00:00.000Z";
+const checkoutCartHref = "/checkout?checkoutStep=cart";
 
 const copy = (locale: CommercePhotonLocale, en: string, ru: string) =>
 	locale === "ru" ? ru : en;
@@ -127,7 +125,7 @@ const createProductDetailBlocks = (
 				kind === "services"
 					? copy(locale, "Service added", "Услуга добавлена")
 					: copy(locale, "Added to cart", "Добавлено в корзину"),
-			cartHref: "/cart",
+			cartHref: checkoutCartHref,
 		},
 		bindings: {
 			product: {
@@ -233,31 +231,6 @@ export const createCommerceProductTemplateDocument = (
 		createProductDetailBlocks(locale, kind),
 	);
 
-export const createCommerceCartDocument = (
-	locale: CommercePhotonLocale = "en",
-): PhotonDocument =>
-	createDocument("commerce-cart", copy(locale, "Cart", "Корзина"), "/cart", [
-		{
-			id: "commerce-cart-summary",
-			module: "commerce-photon",
-			type: "commerce-cart-summary",
-			props: {
-				eyebrow: copy(locale, "Cart", "Корзина"),
-				title: copy(locale, "Your cart", "Ваша корзина"),
-				emptyTitle: copy(locale, "Your cart is empty", "Корзина пуста"),
-				emptyBody: copy(
-					locale,
-					"Add a catalog item to start checkout.",
-					"Добавьте позицию из каталога, чтобы перейти к оформлению.",
-				),
-				checkoutLabel: copy(locale, "Checkout", "Оформить заказ"),
-				catalogLabel: copy(locale, "Continue shopping", "Продолжить покупки"),
-				catalogHref: "/products",
-				checkoutHref: "/checkout",
-			},
-		},
-	]);
-
 export const createCommerceCheckoutDocument = (
 	locale: CommercePhotonLocale = "en",
 ): PhotonDocument =>
@@ -278,10 +251,51 @@ export const createCommerceCheckoutDocument = (
 						"Review your active cart and leave contact details for the order snapshot.",
 						"Проверьте активную корзину и оставьте контактные данные для снимка заказа.",
 					),
+					breadcrumbCartLabel: copy(locale, "Cart", "Корзина"),
+					breadcrumbCheckoutLabel: copy(locale, "Checkout", "Оформить заказ"),
+					cartEyebrow: copy(locale, "Cart", "Корзина"),
+					cartTitle: copy(locale, "Your cart", "Ваша корзина"),
+					cartCheckoutLabel: copy(locale, "Checkout", "Оформить заказ"),
+					cartEmptyTitle: copy(locale, "Your cart is empty", "Корзина пуста"),
+					cartEmptyBody: copy(
+						locale,
+						"Add a catalog item to start checkout.",
+						"Добавьте товар из каталога, чтобы перейти к оформлению.",
+					),
+					cartCatalogLabel: copy(locale, "Back to catalog", "Назад в каталог"),
+					cartCatalogHref: "/catalog",
+					cartStepTitle: copy(locale, "Cart", "Корзина"),
+					cartStepDescription: copy(
+						locale,
+						"Review items",
+						"Проверьте позиции",
+					),
+					checkoutStepTitle: copy(locale, "Checkout", "Оформление"),
+					checkoutStepDescription: copy(
+						locale,
+						"Contacts and order",
+						"Контакты и заказ",
+					),
+					doneStepTitle: copy(locale, "Order confirmed", "Заказ оформлен"),
+					doneStepDescription: copy(locale, "Order placed", "Заказ создан"),
+					summaryTitle: copy(locale, "Cart", "Корзина"),
+					summaryTotalLabel: copy(locale, "Total", "Итого"),
+					summaryEmptyBody: copy(locale, "Cart is empty.", "Корзина пуста."),
+					summaryReturnLabel: copy(
+						locale,
+						"Return to cart",
+						"Вернуться в корзину",
+					),
 					nameLabel: copy(locale, "Name", "Имя"),
 					emailLabel: "Email",
 					phoneLabel: copy(locale, "Phone", "Телефон"),
 					submitLabel: copy(locale, "Place order", "Разместить заказ"),
+					savingLabel: copy(locale, "Placing...", "Размещаем..."),
+					errorLabel: copy(
+						locale,
+						"Unable to place order",
+						"Не удалось разместить заказ",
+					),
 					successTitle: copy(locale, "Order confirmed", "Заказ оформлен"),
 					successBody: copy(
 						locale,
@@ -297,7 +311,7 @@ export const createCommerceCheckoutDocument = (
 						"Track order status in your account",
 						"Отслеживать статус заказа в личном кабинете",
 					),
-					cartHref: "/cart",
+					cartHref: checkoutCartHref,
 					accountOrdersHref: "/account/orders",
 				},
 			},
@@ -472,7 +486,10 @@ const createSiteRegionDocument = (
 											label: copy(locale, "Services", "Услуги"),
 											href: "/services",
 										},
-										{ label: copy(locale, "Cart", "Корзина"), href: "/cart" },
+										{
+											label: copy(locale, "Cart", "Корзина"),
+											href: checkoutCartHref,
+										},
 										{
 											label: copy(locale, "Orders", "Заказы"),
 											href: "/account/orders",
@@ -515,7 +532,6 @@ export const createCommerceStarterProfileTree = (
 	);
 	const catalog = createCommerceCatalogDocument(locale, kind, kind, "/catalog");
 	const product = createCommerceProductTemplateDocument(locale, kind);
-	const cart = createCommerceCartDocument(locale);
 	const checkout = createCommerceCheckoutDocument(locale);
 	const orders = createCommerceAccountOrdersDocument(locale);
 
@@ -526,7 +542,6 @@ export const createCommerceStarterProfileTree = (
 			products: createPageEntry(products),
 			services: createPageEntry(services),
 			product: createPageEntry(product),
-			cart: createPageEntry(cart),
 			checkout: createPageEntry(checkout),
 			accountOrders: createPageEntry(orders),
 		},

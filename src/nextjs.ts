@@ -4,11 +4,7 @@ import type {
 	CommerceCatalogItemView,
 	CommerceOrder,
 } from "@init/commerce";
-import {
-	commerceCartSnapshotKey,
-	configureCommerceRequest,
-	createAxiosCommerceRequest,
-} from "@init/commerce";
+import { commerceCartSnapshotKey } from "@init/commerce";
 import {
 	createNextDataSnapshot,
 	defineNextDataServerResource,
@@ -19,6 +15,7 @@ import type {
 	PhotonResources,
 	PhotonSearchResult,
 } from "@init/photon";
+import { createPhotonServerModule } from "@init/photon-nextjs/server";
 import { cache } from "react";
 
 type CommercePhotonApiClient = {
@@ -43,13 +40,14 @@ const getCommercePhotonApi = () => {
 };
 
 const getCommerceApiResponse = <T>(
+	api: CommercePhotonApiClient | undefined,
 	url: string,
 	config: {
 		params?: Record<string, unknown>;
 		validateStatus?: () => boolean;
 	} = {},
 ) =>
-	getCommercePhotonApi().request<T>({
+	(api ?? getCommercePhotonApi()).request<T>({
 		url,
 		method: "GET",
 		...config,
@@ -57,7 +55,6 @@ const getCommerceApiResponse = <T>(
 
 export const configureCommercePhotonServer = (api: CommercePhotonApiClient) => {
 	commercePhotonApi = api;
-	configureCommerceRequest(createAxiosCommerceRequest(api));
 };
 
 type CommerceStorefrontKind = "hybrid" | "products" | "services";
@@ -178,10 +175,11 @@ const toCommerceCatalogItemView = (
 	coverImage: null,
 });
 
-const listCommerceCatalogItems = cache(async (search?: string) => {
+const listCommerceCatalogItems = cache(
+	async (search?: string, api?: CommercePhotonApiClient) => {
 	const response = await getCommerceApiResponse<{
 		data: CommerceCatalogItem[];
-	}>("/commerce/catalog/items", {
+	}>(api, "/commerce/catalog/items", {
 		params: {
 			search: search?.trim() || undefined,
 		},
@@ -203,10 +201,12 @@ const listCommerceCatalogItems = cache(async (search?: string) => {
 	}
 
 	return response.data.data.map(toCommerceCatalogItemView);
-});
+	},
+);
 
-const getCommerceCartSummary = cache(async () => {
+const getCommerceCartSummary = cache(async (api?: CommercePhotonApiClient) => {
 	const response = await getCommerceApiResponse<{ data: CommerceCart | null }>(
+		api,
 		"/commerce/cart/v1/current",
 		{
 			validateStatus: () => true,
@@ -235,8 +235,10 @@ const getCommerceCartSummary = cache(async () => {
 	return response.data.data;
 });
 
-const listCommerceOrders = cache(async (limit: number) => {
+const listCommerceOrders = cache(
+	async (limit: number, api?: CommercePhotonApiClient) => {
 	const response = await getCommerceApiResponse<{ data: CommerceOrder[] }>(
+		api,
 		"/commerce/order/v1/orders",
 		{
 			params: {
@@ -266,7 +268,8 @@ const listCommerceOrders = cache(async (limit: number) => {
 	}
 
 	return response.data.data;
-});
+	},
+);
 
 const isMissingCommerceActorResponse = (response: {
 	data?: unknown;
@@ -288,9 +291,12 @@ const isMissingCommerceActorResponse = (response: {
 	return Array.isArray(data?.errors?.actor);
 };
 
-const listCommerceCatalogItemsForSearch = async (search: string) => {
+const listCommerceCatalogItemsForSearch = async (
+	search: string,
+	api?: CommercePhotonApiClient,
+) => {
 	try {
-		return await listCommerceCatalogItems(search);
+		return await listCommerceCatalogItems(search, api);
 	} catch (error) {
 		if (error instanceof Error) {
 			throw new Error(`Commerce catalog search failed: ${error.message}`, {
@@ -302,9 +308,11 @@ const listCommerceCatalogItemsForSearch = async (search: string) => {
 	}
 };
 
-const listOptionalCommerceCatalogItems = async () => {
+const listOptionalCommerceCatalogItems = async (
+	api?: CommercePhotonApiClient,
+) => {
 	try {
-		return await listCommerceCatalogItems();
+		return await listCommerceCatalogItems(undefined, api);
 	} catch (error) {
 		if (error instanceof Error) {
 			throw new Error(`Commerce catalog resource failed: ${error.message}`, {
@@ -316,9 +324,11 @@ const listOptionalCommerceCatalogItems = async () => {
 	}
 };
 
-const getOptionalCommerceCartSummary = async () => {
+const getOptionalCommerceCartSummary = async (
+	api?: CommercePhotonApiClient,
+) => {
 	try {
-		return await getCommerceCartSummary();
+		return await getCommerceCartSummary(api);
 	} catch (error) {
 		if (error instanceof Error) {
 			throw new Error(`Commerce cart resource failed: ${error.message}`, {
@@ -330,9 +340,12 @@ const getOptionalCommerceCartSummary = async () => {
 	}
 };
 
-const listOptionalCommerceOrders = async (limit: number) => {
+const listOptionalCommerceOrders = async (
+	limit: number,
+	api?: CommercePhotonApiClient,
+) => {
 	try {
-		return await listCommerceOrders(limit);
+		return await listCommerceOrders(limit, api);
 	} catch (error) {
 		if (error instanceof Error) {
 			throw new Error(`Commerce orders resource failed: ${error.message}`, {
@@ -344,8 +357,10 @@ const listOptionalCommerceOrders = async (limit: number) => {
 	}
 };
 
-const getCommerceCatalogItem = cache(async (slug: string) => {
+const getCommerceCatalogItem = cache(
+	async (slug: string, api?: CommercePhotonApiClient) => {
 	const response = await getCommerceApiResponse<{ data: CommerceCatalogItem }>(
+		api,
 		`/commerce/catalog/items/${encodeURIComponent(slug)}`,
 		{
 			validateStatus: () => true,
@@ -367,11 +382,13 @@ const getCommerceCatalogItem = cache(async (slug: string) => {
 	}
 
 	return toCommerceCatalogItemView(response.data.data);
-});
+	},
+);
 
 export const searchCommerceCatalogItems = async (
 	query: string,
 	limit = 8,
+	api?: CommercePhotonApiClient,
 ): Promise<PhotonSearchResult[]> => {
 	const normalizedQuery = query.trim();
 
@@ -379,7 +396,7 @@ export const searchCommerceCatalogItems = async (
 		return [];
 	}
 
-	const items = await listCommerceCatalogItemsForSearch(normalizedQuery);
+	const items = await listCommerceCatalogItemsForSearch(normalizedQuery, api);
 
 	return items.slice(0, limit).map((item, index) => ({
 		id: `commerce:${item.id}`,
@@ -401,12 +418,6 @@ export const searchCommerceCatalogItems = async (
 	}));
 };
 
-const commerceCartServerResource = defineNextDataServerResource({
-	key: commerceCartSnapshotKey,
-	shouldLoad: async () => true,
-	load: async () => getOptionalCommerceCartSummary(),
-});
-
 const resolveCommerceProductSlug = (requestPath: string) => {
 	const requestedMatch = requestPath.match(/^\/catalog\/([^/?#]+)\/?$/);
 
@@ -420,12 +431,13 @@ const resolveCommerceProductSlug = (requestPath: string) => {
 export const withCommerceResources = async <TPage extends CommerceResolvedPage>(
 	requestPath: string,
 	page: TPage,
+	api?: CommercePhotonApiClient,
 ): Promise<TPage> => {
 	const nextResources: PhotonResources = { ...page.resources };
 	const hasCommerceDocumentBinding = hasCommerceBinding(page.document);
 
 	if (hasCommerceDocumentBinding) {
-		const catalog = await listOptionalCommerceCatalogItems();
+		const catalog = await listOptionalCommerceCatalogItems(api);
 		const products = catalog.filter((item) => item.type === "product");
 		const services = catalog.filter((item) => item.type === "service");
 		const kind = resolveCommerceStorefrontKind(page.document);
@@ -444,7 +456,13 @@ export const withCommerceResources = async <TPage extends CommerceResolvedPage>(
 		context: {
 			requestPath,
 		},
-		resources: [commerceCartServerResource],
+		resources: [
+			defineNextDataServerResource({
+				key: commerceCartSnapshotKey,
+				shouldLoad: async () => true,
+				load: async () => getOptionalCommerceCartSummary(api),
+			}),
+		],
 	});
 	const commerceCartSnapshot = commerceSnapshot[commerceCartSnapshotKey.id];
 
@@ -459,7 +477,7 @@ export const withCommerceResources = async <TPage extends CommerceResolvedPage>(
 		try {
 			nextResources.commerceProduct = {
 				...((nextResources.commerceProduct as Record<string, unknown>) ?? {}),
-				product: await getCommerceCatalogItem(slug),
+				product: await getCommerceCatalogItem(slug, api),
 				status: "ready",
 				slug,
 			};
@@ -481,7 +499,7 @@ export const withCommerceResources = async <TPage extends CommerceResolvedPage>(
 		const limit = resolveCommerceOrderListLimit(page.document);
 
 		nextResources.commerceOrders = {
-			orders: await listOptionalCommerceOrders(limit),
+			orders: await listOptionalCommerceOrders(limit, api),
 			status: "ready",
 			limit,
 		};
@@ -492,3 +510,36 @@ export const withCommerceResources = async <TPage extends CommerceResolvedPage>(
 		resources: nextResources,
 	};
 };
+
+const resolveCommercePhotonApi = (services?: Record<string, unknown>) => {
+	const api = services?.http as CommercePhotonApiClient | undefined;
+
+	if (!api) {
+		throw new Error(
+			'Commerce Photon server module requires an injected "http" service.',
+		);
+	}
+
+	return api;
+};
+
+export const createCommercePhotonServerModule = () =>
+	createPhotonServerModule({
+		name: "commerce-photon",
+		pageDecorators: [
+			(path, page, input) =>
+				withCommerceResources(
+					path,
+					page,
+					resolveCommercePhotonApi(input?.services),
+				),
+		],
+		searchProviders: [
+			(query, limit, input) =>
+				searchCommerceCatalogItems(
+					query,
+					limit,
+					resolveCommercePhotonApi(input?.services),
+				),
+		],
+	});

@@ -2,8 +2,6 @@
 
 import {
 	type CommerceCatalogItemView,
-	createCommerceClient,
-	getCommerceRequest,
 } from "@init/commerce";
 import { useCommerceCartStore } from "@init/commerce/client";
 import {
@@ -27,6 +25,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { useCommercePhotonClient } from "../client";
 import { debounceCallback } from "../helpers/debounce";
 import {
 	commerceBlockClassNames as cx,
@@ -96,7 +95,7 @@ const CommerceProductGrid = ({
 		block.props.addToCartLabel ||
 		(contentLocale === "ru" ? "В корзину" : "Add to cart");
 	const itemIds = items.map((item) => item.id).join("|");
-	const client = useMemo(() => createCommerceClient(getCommerceRequest()), []);
+	const client = useCommercePhotonClient();
 	const cart = useCommerceCartStore((state) => state.cart);
 	const setCart = useCommerceCartStore((state) => state.setCart);
 	const [cartLines, setCartLines] = useState<

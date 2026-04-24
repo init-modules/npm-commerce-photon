@@ -3,6 +3,7 @@
 import {
 	createAxiosCommerceRequest,
 	createCommerceClient,
+	getCommerceRequest,
 	type CommerceAxiosLike,
 	type CommerceCart,
 } from "@init/commerce";
@@ -12,16 +13,53 @@ import {
 	useCommerceCartStore,
 } from "@init/commerce/client";
 import { NextDataFlowProvider } from "@init/next-data-flow/client";
-import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef } from "react";
+import { createPhotonClientModule } from "@init/photon-nextjs/client";
+import {
+	createContext,
+	type ReactNode,
+	useContext,
+	useEffect,
+	useMemo,
+	useRef,
+} from "react";
 
 export const commercePhotonDataStores = [
 	commerceCartStoreDefinition,
 ] as const;
 
-export const createCommercePhotonClient = (
-	api: CommerceAxiosLike,
-) => createCommerceClient(createAxiosCommerceRequest(api));
+export const createCommercePhotonClient = (api: CommerceAxiosLike) =>
+	createCommerceClient(createAxiosCommerceRequest(api));
+
+const CommercePhotonClientContext = createContext<ReturnType<
+	typeof createCommercePhotonClient
+> | null>(null);
+
+const resolveCommercePhotonClient = (api?: CommerceAxiosLike) =>
+	api ? createCommercePhotonClient(api) : createCommerceClient(getCommerceRequest());
+
+const resolveCommercePhotonApi = (services: Record<string, unknown>) => {
+	const api = services.http as CommerceAxiosLike | undefined;
+
+	if (!api) {
+		throw new Error(
+			'Commerce Photon client module requires an injected "http" service.',
+		);
+	}
+
+	return api;
+};
+
+export const useCommercePhotonClient = () => {
+	const client = useContext(CommercePhotonClientContext);
+
+	if (!client) {
+		throw new Error(
+			"Commerce Photon client is not available. Wrap commerce pages with CommercePhotonDataFlowProvider.",
+		);
+	}
+
+	return client;
+};
 
 export const createCommercePhotonCartSnapshot = (
 	resources: Record<string, unknown>,
@@ -68,9 +106,7 @@ export const withCommercePhotonRuntimeResources = <
 	};
 };
 
-export const broadcastCommercePhotonCart = (
-	cart: CommerceCart | null,
-) => {
+export const broadcastCommercePhotonCart = (cart: CommerceCart | null) => {
 	if (typeof window === "undefined") {
 		return;
 	}
@@ -82,9 +118,7 @@ export const broadcastCommercePhotonCart = (
 	);
 };
 
-export const syncCommercePhotonCart = async (
-	api: CommerceAxiosLike,
-) => {
+export const syncCommercePhotonCart = async (api: CommerceAxiosLike) => {
 	const commerceClient = createCommercePhotonClient(api);
 	const response = await commerceClient.syncCurrentCart();
 	const cart = response.data ?? null;
@@ -135,28 +169,74 @@ export const CommercePhotonCartEventBridge = () => {
 
 export const useCommercePhotonCartSnapshot = (
 	resources: Record<string, unknown>,
-) =>
-	useMemo(
-		() => createCommercePhotonCartSnapshot(resources),
-		[resources],
-	);
+) => useMemo(() => createCommercePhotonCartSnapshot(resources), [resources]);
 
 export const CommercePhotonDataFlowProvider = ({
+	api,
 	children,
 	resources,
 }: {
+	api?: CommerceAxiosLike;
 	children: ReactNode;
 	resources: Record<string, unknown>;
 }) => {
 	const snapshot = useCommercePhotonCartSnapshot(resources);
+	const client = useMemo(() => resolveCommercePhotonClient(api), [api]);
 
 	return (
-		<NextDataFlowProvider
-			snapshot={snapshot}
-			stores={commercePhotonDataStores}
-		>
-			<CommercePhotonCartEventBridge />
-			{children}
-		</NextDataFlowProvider>
+		<CommercePhotonClientContext.Provider value={client}>
+			<NextDataFlowProvider
+				snapshot={snapshot}
+				stores={commercePhotonDataStores}
+			>
+				<CommercePhotonCartEventBridge />
+				{children}
+			</NextDataFlowProvider>
+		</CommercePhotonClientContext.Provider>
 	);
 };
+
+export const createCommercePhotonClientModule = () =>
+	createPhotonClientModule({
+		name: "commerce-photon",
+		adminPageDecorators: [withCommercePhotonRuntimeResources],
+		publicPageDecorators: [withCommercePhotonRuntimeResources],
+		adminPageWrappers: [
+			({ children, page, services }) => (
+				<CommercePhotonDataFlowProvider
+					api={resolveCommercePhotonApi(services)}
+					resources={page.resources}
+				>
+					{children}
+				</CommercePhotonDataFlowProvider>
+			),
+		],
+		publicPageWrappers: [
+			({ children, page, services }) => (
+				<CommercePhotonDataFlowProvider
+					api={resolveCommercePhotonApi(services)}
+					resources={page.resources}
+				>
+					{children}
+				</CommercePhotonDataFlowProvider>
+			),
+		],
+		adminAuthSuccessHandlers: [
+			async ({ services }) => {
+				try {
+					await syncCommercePhotonCart(resolveCommercePhotonApi(services));
+				} catch {
+					// Auth should not fail just because the optional cart sync failed.
+				}
+			},
+		],
+		publicAuthSuccessHandlers: [
+			async ({ services }) => {
+				try {
+					await syncCommercePhotonCart(resolveCommercePhotonApi(services));
+				} catch {
+					// Auth should not fail just because the optional cart sync failed.
+				}
+			},
+		],
+	});

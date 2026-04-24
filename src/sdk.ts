@@ -92,55 +92,62 @@ export const commercePhotonSiteFrameExtension: PhotonSiteFrameExtension =
 		label: "Commerce",
 		order: 20,
 		header: {
-			categoryLinks: [
-				{
-					id: "commerce:catalog-link",
-					label: "Catalog",
-					href: "/catalog",
-					slot: "prominent",
-					placement: "prominent",
-					isVisible: isCommerceSiteFrameVisible,
-					order: 10,
-				},
-			],
-			actions: [
-				{
-					id: "commerce:cart-action",
-					label: "Cart",
-					href: commerceCheckoutCartHref,
-					slot: "actions",
-					appearance: "secondary",
-					component: CommerceHeaderCartAction,
-					isVisible: isCommerceSiteFrameVisible,
-					order: 20,
-				},
-			],
-		},
-		footer: {
-			navigationColumns: [
-				{
-					id: "commerce:footer-shop",
-					title: "Shop",
-					order: 20,
+			slots: {
+				prominent: {
 					links: [
 						{
-							id: "commerce:footer-catalog",
+							id: "commerce:catalog-link",
 							label: "Catalog",
 							href: "/catalog",
-						},
-						{
-							id: "commerce:footer-cart",
-							label: "Cart",
-							href: commerceCheckoutCartHref,
-						},
-						{
-							id: "commerce:footer-orders",
-							label: "Orders",
-							href: "/account/orders",
+							isVisible: isCommerceSiteFrameVisible,
+							order: 10,
 						},
 					],
 				},
-			],
+				actions: {
+					actions: [
+						{
+							id: "commerce:cart-action",
+							label: "Cart",
+							href: commerceCheckoutCartHref,
+							appearance: "secondary",
+							component: CommerceHeaderCartAction,
+							isVisible: isCommerceSiteFrameVisible,
+							order: 20,
+						},
+					],
+				},
+			},
+		},
+		footer: {
+			slots: {
+				navigation: {
+					navigationColumns: [
+						{
+							id: "commerce:footer-shop",
+							title: "Shop",
+							order: 20,
+							links: [
+								{
+									id: "commerce:footer-catalog",
+									label: "Catalog",
+									href: "/catalog",
+								},
+								{
+									id: "commerce:footer-cart",
+									label: "Cart",
+									href: commerceCheckoutCartHref,
+								},
+								{
+									id: "commerce:footer-orders",
+									label: "Orders",
+									href: "/account/orders",
+								},
+							],
+						},
+					],
+				},
+			},
 		},
 	});
 

@@ -172,35 +172,35 @@ const toCommerceCatalogItemView = (
 	tracked: item.tracked,
 	href: `/catalog/${item.slug}`,
 	catalogHref: item.type === "service" ? "/services" : "/products",
-	coverImage: null,
+	coverImage: item.cover_image ?? null,
 });
 
 const listCommerceCatalogItems = cache(
 	async (search?: string, api?: CommercePhotonApiClient) => {
-	const response = await getCommerceApiResponse<{
-		data: CommerceCatalogItem[];
-	}>(api, "/commerce/catalog/items", {
-		params: {
-			search: search?.trim() || undefined,
-		},
-		validateStatus: () => true,
-	});
+		const response = await getCommerceApiResponse<{
+			data: CommerceCatalogItem[];
+		}>(api, "/commerce/catalog/items", {
+			params: {
+				search: search?.trim() || undefined,
+			},
+			validateStatus: () => true,
+		});
 
-	if (response.status === 404) {
-		return [];
-	}
+		if (response.status === 404) {
+			return [];
+		}
 
-	if (response.status >= 400) {
-		throw new Error(
-			`Commerce catalog request failed with HTTP ${response.status}`,
-		);
-	}
+		if (response.status >= 400) {
+			throw new Error(
+				`Commerce catalog request failed with HTTP ${response.status}`,
+			);
+		}
 
-	if (!Array.isArray(response.data?.data)) {
-		throw new Error("Commerce catalog response is missing a data array");
-	}
+		if (!Array.isArray(response.data?.data)) {
+			throw new Error("Commerce catalog response is missing a data array");
+		}
 
-	return response.data.data.map(toCommerceCatalogItemView);
+		return response.data.data.map(toCommerceCatalogItemView);
 	},
 );
 
@@ -237,37 +237,37 @@ const getCommerceCartSummary = cache(async (api?: CommercePhotonApiClient) => {
 
 const listCommerceOrders = cache(
 	async (limit: number, api?: CommercePhotonApiClient) => {
-	const response = await getCommerceApiResponse<{ data: CommerceOrder[] }>(
-		api,
-		"/commerce/order/v1/orders",
-		{
-			params: {
-				limit,
+		const response = await getCommerceApiResponse<{ data: CommerceOrder[] }>(
+			api,
+			"/commerce/order/v1/orders",
+			{
+				params: {
+					limit,
+				},
+				validateStatus: () => true,
 			},
-			validateStatus: () => true,
-		},
-	);
-
-	if (
-		response.status === 401 ||
-		response.status === 403 ||
-		response.status === 404 ||
-		isMissingCommerceActorResponse(response)
-	) {
-		return [];
-	}
-
-	if (response.status >= 400) {
-		throw new Error(
-			`Commerce orders request failed with HTTP ${response.status}`,
 		);
-	}
 
-	if (!Array.isArray(response.data?.data)) {
-		throw new Error("Commerce orders response is missing a data array");
-	}
+		if (
+			response.status === 401 ||
+			response.status === 403 ||
+			response.status === 404 ||
+			isMissingCommerceActorResponse(response)
+		) {
+			return [];
+		}
 
-	return response.data.data;
+		if (response.status >= 400) {
+			throw new Error(
+				`Commerce orders request failed with HTTP ${response.status}`,
+			);
+		}
+
+		if (!Array.isArray(response.data?.data)) {
+			throw new Error("Commerce orders response is missing a data array");
+		}
+
+		return response.data.data;
 	},
 );
 
@@ -359,29 +359,27 @@ const listOptionalCommerceOrders = async (
 
 const getCommerceCatalogItem = cache(
 	async (slug: string, api?: CommercePhotonApiClient) => {
-	const response = await getCommerceApiResponse<{ data: CommerceCatalogItem }>(
-		api,
-		`/commerce/catalog/items/${encodeURIComponent(slug)}`,
-		{
+		const response = await getCommerceApiResponse<{
+			data: CommerceCatalogItem;
+		}>(api, `/commerce/catalog/items/${encodeURIComponent(slug)}`, {
 			validateStatus: () => true,
-		},
-	);
+		});
 
-	if (response.status === 404) {
-		throw new CommerceCatalogItemNotFoundError(slug);
-	}
+		if (response.status === 404) {
+			throw new CommerceCatalogItemNotFoundError(slug);
+		}
 
-	if (response.status >= 400) {
-		throw new Error(
-			`Commerce catalog item request failed with HTTP ${response.status}`,
-		);
-	}
+		if (response.status >= 400) {
+			throw new Error(
+				`Commerce catalog item request failed with HTTP ${response.status}`,
+			);
+		}
 
-	if (!response.data?.data) {
-		throw new Error("Commerce catalog item response is missing data");
-	}
+		if (!response.data?.data) {
+			throw new Error("Commerce catalog item response is missing data");
+		}
 
-	return toCommerceCatalogItemView(response.data.data);
+		return toCommerceCatalogItemView(response.data.data);
 	},
 );
 

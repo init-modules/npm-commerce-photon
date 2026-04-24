@@ -1,17 +1,7 @@
 "use client";
 
-import { type CommerceOrder } from "@init/commerce";
+import type { CommerceCartItem, CommerceOrder } from "@init/commerce";
 import { useCommerceCartStore } from "@init/commerce/client";
-import {
-	Breadcrumb,
-	BreadcrumbItem,
-	BreadcrumbList,
-	BreadcrumbPage,
-	BreadcrumbSeparator,
-	Counter,
-	type StepItem,
-	Steps,
-} from "@init/ui";
 import {
 	createPhotonFormFieldsField,
 	definePhotonForm,
@@ -23,16 +13,26 @@ import {
 	definePhotonBlockDefinition,
 	EditableText,
 	EditableTextarea,
+	type PhotonBlockComponentProps,
+	type PhotonBlockDefinition,
+	PhotonLink,
 	usePhoton,
 	usePhotonCanEdit,
 	usePhotonI18n,
 	usePhotonValueAtPath,
-	type PhotonBlockComponentProps,
-	type PhotonBlockDefinition,
-	PhotonLink,
 } from "@init/photon/public";
-import type { ElementType, HTMLAttributes } from "react";
+import {
+	Breadcrumb,
+	BreadcrumbItem,
+	BreadcrumbList,
+	BreadcrumbPage,
+	BreadcrumbSeparator,
+	Counter,
+	type StepItem,
+	Steps,
+} from "@init/ui";
 import { CheckCircle2, ReceiptText, X } from "lucide-react";
+import type { ElementType, HTMLAttributes, ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 import { useCommercePhotonClient } from "../client";
@@ -123,6 +123,12 @@ const checkoutDefaultFields: PhotonFormFieldDefinition[] = [
 		removable: false,
 	},
 ];
+const [checkoutNameField, checkoutEmailField, checkoutPhoneField] =
+	checkoutDefaultFields as [
+		PhotonFormFieldDefinition,
+		PhotonFormFieldDefinition,
+		PhotonFormFieldDefinition,
+	];
 
 const checkoutFormDefinition = definePhotonForm({
 	id: "commerce.checkout",
@@ -216,6 +222,106 @@ const normalizeCheckoutCartHref = (href: unknown) => {
 		: checkoutCartStepHref;
 };
 
+const commerceItemImageKeys = [
+	"coverImage",
+	"cover_image",
+	"image",
+	"image_url",
+	"thumbnail",
+	"thumbnail_url",
+	"media_url",
+] as const;
+
+const commerceItemImageObjectKeys = [
+	"cover",
+	"image",
+	"thumbnail",
+	"media",
+] as const;
+
+const readRecordString = (
+	record: Record<string, unknown> | null | undefined,
+	key: string,
+) => {
+	const value = record?.[key];
+
+	return typeof value === "string" && value.trim() ? value.trim() : null;
+};
+
+const readImageFromRecord = (
+	record: Record<string, unknown> | null | undefined,
+) => {
+	if (!record) {
+		return null;
+	}
+
+	for (const key of commerceItemImageKeys) {
+		const value = readRecordString(record, key);
+
+		if (value) {
+			return value;
+		}
+	}
+
+	for (const key of commerceItemImageObjectKeys) {
+		const value = record[key];
+
+		if (typeof value === "string" && value.trim()) {
+			return value.trim();
+		}
+
+		if (typeof value === "object" && value !== null) {
+			const nested = value as Record<string, unknown>;
+			const nestedValue =
+				readRecordString(nested, "url") ??
+				readRecordString(nested, "src") ??
+				readRecordString(nested, "path");
+
+			if (nestedValue) {
+				return nestedValue;
+			}
+		}
+	}
+
+	return null;
+};
+
+const resolveCommerceItemImage = (item: CommerceCartItem) => {
+	const itemRecord = item as CommerceCartItem & Record<string, unknown>;
+
+	return (
+		readImageFromRecord(itemRecord) ??
+		readImageFromRecord(item.catalog_snapshot) ??
+		readImageFromRecord(item.pricing_snapshot) ??
+		readImageFromRecord(item.meta)
+	);
+};
+
+const CommerceOrderItemMedia = ({ item }: { item: CommerceCartItem }) => {
+	const image = resolveCommerceItemImage(item);
+	const name = item.name?.trim() || "Item";
+	const fallbackInitial = name.slice(0, 1).toUpperCase();
+
+	if (image) {
+		return (
+			<img
+				src={image}
+				alt=""
+				className="h-14 w-14 shrink-0 rounded-md border border-[color:var(--photon-site-border)] bg-[color-mix(in_oklab,var(--photon-site-surface)_72%,var(--photon-site-background))] object-cover sm:h-16 sm:w-16"
+			/>
+		);
+	}
+
+	return (
+		<div
+			aria-hidden="true"
+			className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md border border-[color:var(--photon-site-border)] bg-[color-mix(in_oklab,var(--photon-site-surface)_72%,var(--photon-site-background))] text-sm font-semibold text-[var(--photon-site-accent)] sm:h-16 sm:w-16"
+		>
+			{fallbackInitial}
+		</div>
+	);
+};
+
 type CheckoutTextProps = HTMLAttributes<HTMLElement> & {
 	blockId: string;
 	path: string;
@@ -256,37 +362,6 @@ const CheckoutText = ({
 	);
 };
 
-const CheckoutTextarea = ({
-	blockId,
-	path,
-	placeholder,
-	className,
-	...rest
-}: Omit<CheckoutTextProps, "as">) => {
-	const canEdit = usePhotonCanEdit();
-	const value = usePhotonValueAtPath(blockId, path);
-	const hasValue =
-		typeof value === "string" ? value.trim() !== "" : value != null;
-
-	if (canEdit || hasValue) {
-		return (
-			<EditableTextarea
-				blockId={blockId}
-				path={path}
-				placeholder={placeholder}
-				className={className}
-				{...rest}
-			/>
-		);
-	}
-
-	return (
-		<div className={className} {...rest}>
-			{placeholder}
-		</div>
-	);
-};
-
 const readCheckoutStepFromLocation = (): CommerceCheckoutStepKey | null => {
 	if (typeof window === "undefined") {
 		return null;
@@ -322,6 +397,7 @@ const CommerceCheckoutForm = ({
 	const resourceRequestedStep = readCheckoutStepFromResources(resources);
 	const [requestedStep, setRequestedStep] =
 		useState<CommerceCheckoutStepKey | null>(() => resourceRequestedStep);
+	const [useCompactSteps, setUseCompactSteps] = useState(false);
 	const { applyItemQuantity, cart, setCart } = useCommerceCartStore(
 		(state) => ({
 			applyItemQuantity: state.applyItemQuantity,
@@ -429,6 +505,20 @@ const CommerceCheckoutForm = ({
 			setStatus("idle");
 		}
 	}, [cart, status]);
+
+	useEffect(() => {
+		if (typeof window === "undefined") {
+			return;
+		}
+
+		const mediaQuery = window.matchMedia("(max-width: 639px)");
+		const syncCompactSteps = () => setUseCompactSteps(mediaQuery.matches);
+
+		syncCompactSteps();
+		mediaQuery.addEventListener("change", syncCompactSteps);
+
+		return () => mediaQuery.removeEventListener("change", syncCompactSteps);
+	}, []);
 
 	useEffect(() => {
 		if (typeof window === "undefined") {
@@ -635,16 +725,16 @@ const CommerceCheckoutForm = ({
 			? block.props.fields
 			: [
 					{
-						...checkoutDefaultFields[0]!,
-						label: block.props.nameLabel ?? checkoutDefaultFields[0]!.label,
+						...checkoutNameField,
+						label: block.props.nameLabel ?? checkoutNameField.label,
 					},
 					{
-						...checkoutDefaultFields[1]!,
-						label: block.props.emailLabel ?? checkoutDefaultFields[1]!.label,
+						...checkoutEmailField,
+						label: block.props.emailLabel ?? checkoutEmailField.label,
 					},
 					{
-						...checkoutDefaultFields[2]!,
-						label: block.props.phoneLabel ?? checkoutDefaultFields[2]!.label,
+						...checkoutPhoneField,
+						label: block.props.phoneLabel ?? checkoutPhoneField.label,
 					},
 				];
 	const cartList = hasItems ? (
@@ -746,6 +836,85 @@ const CommerceCheckoutForm = ({
 			</PhotonLink>
 		</div>
 	);
+	const stepItems: readonly StepItem[] = isCartStep
+		? createCartSummarySteps(contentLocale)
+		: steps;
+	const handleStepChange =
+		mode === "preview" && !isCartStep
+			? (nextStep: number) => {
+					if (order && nextStep !== 2) {
+						return;
+					}
+
+					if ((nextStep > 0 && !hasItems) || (nextStep === 2 && !order)) {
+						return;
+					}
+
+					pushCheckoutStep(nextStep);
+				}
+			: undefined;
+	const renderCompactStep = (item: StepItem, index: number) => {
+		const isActive = index === activeStepIndex;
+		const isFinished = item.status === "finish" || index < activeStepIndex;
+		const isDisabled = Boolean(item.disabled) || !handleStepChange;
+		const clickable = !isDisabled && !isActive;
+		const indicatorClass = isActive
+			? "border-[var(--photon-site-accent)] text-[var(--photon-site-accent)]"
+			: isFinished
+				? "border-[var(--photon-site-accent)] bg-[var(--photon-site-accent)] text-[var(--photon-site-background)]"
+				: "border-[color:var(--photon-site-border)] text-[var(--photon-site-muted-text)]";
+		const textClass = isActive || isFinished ? cx.strongText : cx.mutedText;
+		const headerClass = `relative z-10 flex w-full items-start gap-3 text-left ${clickable ? "cursor-pointer" : ""}`;
+		const headerContent = (
+			<>
+				<span
+					className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-sm font-medium ${indicatorClass}`}
+				>
+					{isFinished ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+				</span>
+				<span className="min-w-0 pt-0.5">
+					<span className={`block text-sm font-semibold ${textClass}`}>
+						{item.title}
+					</span>
+					{item.description ? (
+						<span className={`mt-1 block text-xs ${cx.mutedText}`}>
+							{item.description}
+						</span>
+					) : null}
+				</span>
+			</>
+		);
+
+		return (
+			<li key={index} className="relative pb-4 last:pb-0">
+				{index < stepItems.length - 1 ? (
+					<div className="absolute left-4 top-9 h-[calc(100%-1.25rem)] w-px bg-[color:var(--photon-site-border)]" />
+				) : null}
+				{clickable ? (
+					<button
+						type="button"
+						onClick={() => handleStepChange?.(index)}
+						className={headerClass}
+					>
+						{headerContent}
+					</button>
+				) : (
+					<div className={headerClass}>{headerContent}</div>
+				)}
+			</li>
+		);
+	};
+	const renderCompactSteps = (from: number, to: number): ReactNode => {
+		const visibleSteps = stepItems
+			.map((item, index) => ({ item, index }))
+			.filter(({ index }) => index >= from && index <= to);
+
+		return visibleSteps.length > 0 ? (
+			<ol className="grid gap-0 sm:hidden">
+				{visibleSteps.map(({ item, index }) => renderCompactStep(item, index))}
+			</ol>
+		) : null;
+	};
 
 	return (
 		<section className={`${cx.section} py-12`}>
@@ -789,34 +958,23 @@ const CommerceCheckoutForm = ({
 						</BreadcrumbList>
 					)}
 				</Breadcrumb>
-				<Steps
-					current={activeStepIndex}
-					className="mb-8"
-					items={isCartStep ? createCartSummarySteps(contentLocale) : steps}
-					onChange={
-						mode === "preview" && !isCartStep
-							? (nextStep) => {
-									if (order && nextStep !== 2) {
-										return;
-									}
-
-									if (
-										(nextStep > 0 && !hasItems) ||
-										(nextStep === 2 && !order)
-									) {
-										return;
-									}
-
-									pushCheckoutStep(nextStep);
-								}
-							: undefined
-					}
-				/>
+				{useCompactSteps ? (
+					renderCompactSteps(0, activeStepIndex)
+				) : (
+					<Steps
+						current={activeStepIndex}
+						className="mb-8"
+						items={stepItems}
+						onChange={handleStepChange}
+					/>
+				)}
 				<div
 					className={
-						isCartStep || isDoneStep
-							? ""
-							: "grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]"
+						useCompactSteps
+							? "mb-6 ml-4 border-l border-[color:var(--photon-site-border)] pb-2 pl-5"
+							: isCartStep || isDoneStep
+								? ""
+								: "grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]"
 					}
 				>
 					<div>
@@ -945,37 +1103,49 @@ const CommerceCheckoutForm = ({
 
 									<div className="divide-y divide-[color:var(--photon-site-border)]">
 										<div
-											className={`hidden grid-cols-[minmax(0,1fr)_9rem_12rem] gap-4 px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] sm:grid ${cx.mutedText}`}
+											className={`hidden grid-cols-[minmax(0,1fr)_7rem_11rem] gap-4 px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] sm:grid ${cx.mutedText}`}
 										>
 											<div>{orderItemNameLabel}</div>
-											<div>{orderItemQuantityLabel}</div>
+											<div className="text-center">
+												{orderItemQuantityLabel}
+											</div>
 											<div className="text-right">{orderItemPriceLabel}</div>
 										</div>
 										{order.items.map((item) => (
 											<div
 												key={item.id}
-												className="grid gap-4 p-5 sm:grid-cols-[minmax(0,1fr)_9rem_12rem] sm:items-center"
+												className="grid gap-4 p-4 sm:grid-cols-[minmax(0,1fr)_7rem_11rem] sm:items-center sm:p-5"
 											>
-												<div className="min-w-0">
-													<div className={`font-semibold ${cx.strongText}`}>
-														{item.name}
+												<div className="flex min-w-0 items-center gap-3">
+													<CommerceOrderItemMedia item={item} />
+													<div className="min-w-0">
+														<div
+															className={`truncate font-semibold ${cx.strongText}`}
+														>
+															{item.name}
+														</div>
+														{item.sku ? (
+															<div className={`mt-1 text-xs ${cx.mutedText}`}>
+																{item.sku}
+															</div>
+														) : null}
 													</div>
 												</div>
-												<div className="flex items-center justify-between gap-4 sm:block">
-													<div className={`text-sm sm:hidden ${cx.mutedText}`}>
+												<div className="grid grid-cols-2 gap-3 rounded-md border border-[color:var(--photon-site-border)] bg-[color-mix(in_oklab,var(--photon-site-background)_42%,transparent)] p-3 sm:block sm:border-0 sm:bg-transparent sm:p-0 sm:text-center">
+													<div className={`text-xs sm:hidden ${cx.mutedText}`}>
 														{orderItemQuantityLabel}
 													</div>
-													<div className={`font-semibold ${cx.strongText}`}>
+													<div
+														className={`text-right font-semibold sm:text-center ${cx.strongText}`}
+													>
 														{item.quantity}
 													</div>
-												</div>
-												<div className="flex items-center justify-between gap-4 sm:block sm:text-right">
-													<div className={`text-sm sm:hidden ${cx.mutedText}`}>
+													<div className={`text-xs sm:hidden ${cx.mutedText}`}>
 														{orderItemPriceLabel}
 													</div>
-													<div>
+													<div className="text-right sm:hidden">
 														<div
-															className={`text-lg font-semibold ${cx.strongText}`}
+															className={`text-base font-semibold ${cx.strongText}`}
 														>
 															{formatCommerceMoney(
 																item.line_total,
@@ -991,6 +1161,25 @@ const CommerceCheckoutForm = ({
 															)}{" "}
 															/ {contentLocale === "ru" ? "шт." : "unit"}
 														</div>
+													</div>
+												</div>
+												<div className="hidden text-right sm:block">
+													<div
+														className={`text-lg font-semibold ${cx.strongText}`}
+													>
+														{formatCommerceMoney(
+															item.line_total,
+															order.currency,
+															contentLocale,
+														)}
+													</div>
+													<div className={`mt-1 text-xs ${cx.mutedText}`}>
+														{formatCommerceMoney(
+															item.unit_price,
+															order.currency,
+															contentLocale,
+														)}{" "}
+														/ {contentLocale === "ru" ? "шт." : "unit"}
 													</div>
 												</div>
 											</div>
@@ -1106,6 +1295,9 @@ const CommerceCheckoutForm = ({
 						/>
 					)}
 				</div>
+				{useCompactSteps
+					? renderCompactSteps(activeStepIndex + 1, stepItems.length - 1)
+					: null}
 			</div>
 		</section>
 	);
@@ -1203,15 +1395,15 @@ export const commerceCheckoutFormDefinition: PhotonBlockDefinition<CommerceCheck
 				en: checkoutDefaultFields,
 				ru: [
 					{
-						...checkoutDefaultFields[0]!,
+						...checkoutNameField,
 						label: "Имя",
 					},
 					{
-						...checkoutDefaultFields[1]!,
+						...checkoutEmailField,
 						label: "Email",
 					},
 					{
-						...checkoutDefaultFields[2]!,
+						...checkoutPhoneField,
 						label: "Телефон",
 					},
 				],

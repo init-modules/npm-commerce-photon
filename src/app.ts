@@ -15,7 +15,11 @@ import {
 	commerceProfileStarterPresets,
 	createCommerceAccountOrdersDocument,
 	createCommerceStarterProfileTree,
+	type CommercePhotonLocale,
 } from "./documents";
+
+const coerceCommercePhotonLocale = (locale: string): CommercePhotonLocale =>
+	locale === "ru" ? "ru" : "en";
 
 export type CreateCommercePhotonAppModuleOptions = {
 	services?: PhotonAppModuleServiceMap;
@@ -52,7 +56,7 @@ export const createCommercePhotonAppModule = (
 					isCommerceProfileTemplateSource(source),
 				createTree: (locale, source) =>
 					createCommerceProfileTemplateTree(
-						locale,
+						coerceCommercePhotonLocale(locale),
 						source as Parameters<typeof createCommerceProfileTemplateTree>[1],
 					),
 			},
@@ -63,7 +67,7 @@ export const createCommercePhotonAppModule = (
 				],
 				(locale, source) =>
 					createCommerceStarterProfileTree(
-						locale,
+						coerceCommercePhotonLocale(locale),
 						source as Parameters<typeof createCommerceStarterProfileTree>[1],
 					),
 			),

@@ -1,0 +1,7 @@
+{
+	"project_slug": "commerce-photon",
+	"name": "@init/commerce-photon",
+	"entry_type": "package",
+	"scope": "package:@init/commerce-photon",
+	"package_name": "@init/commerce-photon"
+}

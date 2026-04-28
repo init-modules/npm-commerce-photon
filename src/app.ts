@@ -11,6 +11,11 @@ import {
 	isCommerceProfileTemplateSource,
 } from "@init/commerce-profile-templates/documents";
 import {
+	commerceCartContribution,
+	commerceCatalogLinkContribution,
+	commerceFooterShopColumnContribution,
+} from "./contributions";
+import {
 	commerceDesignTemplates,
 	commerceProfileStarterPresets,
 	createCommerceAccountOrdersDocument,
@@ -39,6 +44,11 @@ export const createCommercePhotonAppModule = (
 				commerceAccountOrders: createCommerceAccountOrdersDocument("en"),
 			},
 		},
+		siteFrameContributions: [
+			commerceCatalogLinkContribution,
+			commerceCartContribution,
+			commerceFooterShopColumnContribution,
+		],
 		profileSources: {
 			presets: [
 				...commerceProfileStarterPresets,

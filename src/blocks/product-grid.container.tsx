@@ -36,6 +36,11 @@ import {
 	normalizeCommerceProducts,
 } from "./shared";
 
+type CommerceProductGridCardVariant = "default" | "marketplace";
+type CommerceProductGridSurface = "bare" | "beige";
+type CommerceProductGridLayout = "grid" | "swiper";
+type CommerceProductGridCardActions = "add-to-cart" | "link-only";
+
 type CommerceProductGridProps = {
 	eyebrow: string;
 	title: string;
@@ -46,6 +51,10 @@ type CommerceProductGridProps = {
 	addToCartLabel: string;
 	columns: number;
 	showDescription: boolean;
+	cardVariant: CommerceProductGridCardVariant;
+	surface: CommerceProductGridSurface;
+	layout: CommerceProductGridLayout;
+	cardActions: CommerceProductGridCardActions;
 };
 
 const getStockLabel = (locale: string, item: CommerceCatalogItemView) => {
@@ -94,7 +103,59 @@ const CommerceProductGrid = ({
 	const addToCartLabel =
 		block.props.addToCartLabel ||
 		(contentLocale === "ru" ? "В корзину" : "Add to cart");
+	const cardVariant: CommerceProductGridCardVariant =
+		block.props.cardVariant === "marketplace" ? "marketplace" : "default";
+	const surface: CommerceProductGridSurface =
+		block.props.surface === "beige" ? "beige" : "bare";
+	const layoutMode: CommerceProductGridLayout =
+		block.props.layout === "swiper" ? "swiper" : "grid";
+	const cardActionsMode: CommerceProductGridCardActions =
+		block.props.cardActions === "link-only" ? "link-only" : "add-to-cart";
+	const isMarketplace = cardVariant === "marketplace";
+	const isBeige = surface === "beige";
+	const isSwiper = layoutMode === "swiper";
+	const isLinkOnly = cardActionsMode === "link-only";
+
+	const swiperScrollRef = useRef<HTMLDivElement | null>(null);
+	const slideRefs = useRef<Array<HTMLElement | null>>([]);
+	const [activeSlide, setActiveSlide] = useState(0);
 	const itemIds = items.map((item) => item.id).join("|");
+
+	useEffect(() => {
+		if (!isSwiper) {
+			return;
+		}
+		const root = swiperScrollRef.current;
+		if (!root) {
+			return;
+		}
+		const slides = slideRefs.current.filter(
+			(node): node is HTMLElement => Boolean(node),
+		);
+		if (slides.length === 0) {
+			return;
+		}
+
+		const observer = new IntersectionObserver(
+			(entries) => {
+				const visible = entries
+					.filter((entry) => entry.isIntersecting)
+					.sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+				if (!visible) return;
+				const index = slides.indexOf(visible.target as HTMLElement);
+				if (index >= 0) {
+					setActiveSlide(index);
+				}
+			},
+			{ root, threshold: [0.5, 0.75, 1] },
+		);
+
+		for (const slide of slides) {
+			observer.observe(slide);
+		}
+
+		return () => observer.disconnect();
+	}, [isSwiper, itemIds]);
 	const client = useCommercePhotonClient();
 	const cart = useCommerceCartStore((state) => state.cart);
 	const setCart = useCommerceCartStore((state) => state.setCart);
@@ -297,143 +358,236 @@ const CommerceProductGrid = ({
 				</div>
 
 				{items.length > 0 ? (
-					<div
-						className="mt-10 grid justify-start gap-x-7 gap-y-10 [grid-template-columns:repeat(auto-fill,minmax(min(16rem,100%),18rem))] xl:grid-cols-[repeat(var(--commerce-grid-columns),minmax(0,1fr))] xl:justify-stretch"
-						style={
-							{
-								"--commerce-grid-columns": columns,
-							} as CSSProperties
-						}
-					>
-						{items.map((item, itemIndex) => {
-							const line = cartLines[item.id];
-							const status = itemStatuses[item.id] ?? "idle";
-							const itemHref = item.href ?? `/catalog/${item.slug}`;
+					<>
+						<div
+							ref={swiperScrollRef}
+							className={
+								isSwiper
+									? "mt-10 -mx-4 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+									: "mt-10 grid justify-start gap-x-7 gap-y-10 [grid-template-columns:repeat(auto-fill,minmax(min(16rem,100%),18rem))] xl:grid-cols-[repeat(var(--commerce-grid-columns),minmax(0,1fr))] xl:justify-stretch"
+							}
+							style={
+								isSwiper
+									? undefined
+									: ({
+											"--commerce-grid-columns": columns,
+										} as CSSProperties)
+							}
+						>
+							{items.map((item, itemIndex) => {
+								const line = cartLines[item.id];
+								const status = itemStatuses[item.id] ?? "idle";
+								const itemHref = item.href ?? `/catalog/${item.slug}`;
 
-							return (
-								<article
-									key={item.id}
-									className="group w-full max-w-[18rem] min-w-0 xl:max-w-none"
-								>
-									<PhotonLink href={itemHref} className="block min-w-0">
-										<div
-											className={`relative aspect-[4/3] overflow-hidden rounded-md ${cx.mutedSurface}`}
-										>
-											{item.coverImage ? (
-												<img
-													src={item.coverImage}
-													alt={item.name}
-													className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.02]"
-												/>
-											) : (
-												<div className="flex h-full w-full items-center justify-center bg-[color-mix(in_oklab,var(--photon-site-surface)_70%,var(--photon-site-accent))] p-6 text-center">
-													<div
-														className={`max-w-[12rem] text-xs font-semibold uppercase tracking-[0.2em] ${cx.mutedText}`}
-													>
-														{item.sku ?? item.name}
+								const articleClass = [
+									"group w-full min-w-0",
+									isSwiper
+										? "snap-start shrink-0 min-w-[260px] sm:min-w-[280px] md:min-w-[300px] max-w-[320px]"
+										: "max-w-[18rem] xl:max-w-none",
+									isBeige
+										? "rounded-[var(--mp-radius-2xl,16px)] bg-[var(--mp-card-bg,#F5F4F2)] p-3 sm:p-4"
+										: "",
+								]
+									.filter(Boolean)
+									.join(" ");
+
+								const imageWrapperClass = [
+									"relative overflow-hidden",
+									isMarketplace ? "aspect-[4/5]" : "aspect-[4/3]",
+									isBeige
+										? "rounded-[calc(var(--mp-radius-2xl,16px)-4px)]"
+										: "rounded-md",
+									cx.mutedSurface,
+								].join(" ");
+
+								const titleClass = isMarketplace
+									? `mt-2 block min-h-10 text-sm font-normal leading-5 ${cx.strongText}`
+									: `mt-2 block min-h-12 text-base font-medium leading-6 ${cx.strongText}`;
+
+								const priceClass = isMarketplace
+									? `text-lg font-bold tracking-tight text-[var(--photon-site-accent)]`
+									: `text-xl font-semibold tracking-tight ${cx.strongText}`;
+
+								return (
+									<article
+										key={item.id}
+										ref={(node) => {
+											slideRefs.current[itemIndex] = node;
+										}}
+										className={articleClass}
+									>
+										<PhotonLink href={itemHref} className="block min-w-0">
+											<div className={imageWrapperClass}>
+												{item.coverImage ? (
+													<img
+														src={item.coverImage}
+														alt={item.name}
+														className={`h-full w-full ${
+															isMarketplace
+																? "object-cover object-top"
+																: "object-cover"
+														} transition duration-300 group-hover:scale-[1.02]`}
+													/>
+												) : (
+													<div className="flex h-full w-full items-center justify-center bg-[color-mix(in_oklab,var(--photon-site-surface)_70%,var(--photon-site-accent))] p-6 text-center">
+														<div
+															className={`max-w-[12rem] text-xs font-semibold uppercase tracking-[0.2em] ${cx.mutedText}`}
+														>
+															{item.sku ?? item.name}
+														</div>
 													</div>
-												</div>
-											)}
-										</div>
-									</PhotonLink>
-									<div className="mt-5">
-										<div
-											className={`text-xl font-semibold tracking-tight ${cx.strongText}`}
-										>
-											{formatCommerceMoney(
-												item.publicPriceAmount,
-												item.currency,
-												contentLocale,
-											)}
-										</div>
-										<PhotonLink
-											href={itemHref}
-											className={`mt-2 block min-h-12 text-base font-medium leading-6 ${cx.strongText}`}
-										>
-											<EditableText
-												blockId={block.id}
-												path={`items.${itemIndex}.name`}
-												className="line-clamp-2"
-											/>
-										</PhotonLink>
-										{block.props.showDescription && item.description ? (
-											<EditableTextarea
-												blockId={block.id}
-												path={`items.${itemIndex}.description`}
-												className={`mt-2 line-clamp-2 text-sm leading-6 ${cx.mutedText}`}
-											/>
-										) : null}
-										<div
-											className={`mt-3 flex items-center gap-3 text-sm ${cx.mutedText}`}
-										>
-											<span>☆ 0.0</span>
-											<span className="inline-flex items-center gap-1 text-[var(--photon-site-accent)]">
-												<span aria-hidden="true">⊙</span>
-												{getStockLabel(contentLocale, item)}
-											</span>
-										</div>
-										<div className="mt-4 flex min-h-11 items-center gap-3">
-											{line?.quantity ? (
-												<Counter
-													value={line.quantity}
-													min={0}
-													disabled={!interactive}
-													valueLabel={addToCartLabel}
-													onValueChange={(nextQuantity) =>
-														setCartLines((currentLines) => ({
-															...currentLines,
-															[item.id]: {
-																id: currentLines[item.id]?.id ?? "",
-																quantity: nextQuantity,
-															},
-														}))
-													}
-													onValueCommit={(nextQuantity) => {
-														desiredItemQuantitiesRef.current.set(
-															item.id,
-															nextQuantity,
-														);
-														syncItemQuantity(item, nextQuantity);
-													}}
-													className="h-10 min-w-32 bg-[var(--photon-site-text)] text-[var(--photon-site-background)]"
-													buttonClassName="h-8 w-8 hover:bg-[color-mix(in_oklab,var(--photon-site-background)_14%,transparent)]"
-													valueClassName="h-8"
-												/>
-											) : (
-												<button
-													type="button"
-													disabled={!interactive}
-													onClick={() => queueItemQuantity(item, 1)}
-													className={cx.primaryButton}
-												>
-													{addToCartLabel}
-												</button>
-											)}
-											<button
-												type="button"
-												aria-label={block.props.cardCtaLabel}
-												className={`flex h-10 w-10 items-center justify-center rounded-full transition hover:text-[var(--photon-site-accent)] ${cx.mutedText}`}
-											>
-												<FavoriteIcon />
-											</button>
-											<PhotonLink
-												href={itemHref}
-												aria-label={block.props.cardCtaLabel}
-												className={`flex h-10 w-10 items-center justify-center rounded-full transition hover:text-[var(--photon-site-accent)] ${cx.mutedText}`}
-											>
-												<DetailIcon />
-											</PhotonLink>
-										</div>
-										{status === "error" ? (
-											<div className={`mt-2 text-sm ${cx.errorText}`}>
-												Unable to update cart
+												)}
 											</div>
-										) : null}
-									</div>
-								</article>
-							);
-						})}
-					</div>
+										</PhotonLink>
+										<div className={isMarketplace ? "mt-3" : "mt-5"}>
+											{isMarketplace ? (
+												<>
+													<PhotonLink
+														href={itemHref}
+														className={titleClass}
+													>
+														<EditableText
+															blockId={block.id}
+															path={`items.${itemIndex}.name`}
+															className="line-clamp-2"
+														/>
+													</PhotonLink>
+													<div className={`mt-1 ${priceClass}`}>
+														{formatCommerceMoney(
+															item.publicPriceAmount,
+															item.currency,
+															contentLocale,
+														)}
+													</div>
+												</>
+											) : (
+												<>
+													<div className={priceClass}>
+														{formatCommerceMoney(
+															item.publicPriceAmount,
+															item.currency,
+															contentLocale,
+														)}
+													</div>
+													<PhotonLink href={itemHref} className={titleClass}>
+														<EditableText
+															blockId={block.id}
+															path={`items.${itemIndex}.name`}
+															className="line-clamp-2"
+														/>
+													</PhotonLink>
+												</>
+											)}
+											{block.props.showDescription && item.description ? (
+												<EditableTextarea
+													blockId={block.id}
+													path={`items.${itemIndex}.description`}
+													className={`mt-2 line-clamp-2 text-sm leading-6 ${cx.mutedText}`}
+												/>
+											) : null}
+											{isLinkOnly ? (
+												<div className="mt-3">
+													<PhotonLink
+														href={itemHref}
+														aria-label={block.props.cardCtaLabel}
+														className={`inline-flex items-center gap-1 text-sm font-medium ${cx.strongText} hover:text-[var(--photon-site-accent)]`}
+													>
+														{block.props.cardCtaLabel}
+														<DetailIcon />
+													</PhotonLink>
+												</div>
+											) : (
+												<>
+													<div
+														className={`mt-3 flex items-center gap-3 text-sm ${cx.mutedText}`}
+													>
+														<span>☆ 0.0</span>
+														<span className="inline-flex items-center gap-1 text-[var(--photon-site-accent)]">
+															<span aria-hidden="true">⊙</span>
+															{getStockLabel(contentLocale, item)}
+														</span>
+													</div>
+													<div className="mt-4 flex min-h-11 items-center gap-3">
+														{line?.quantity ? (
+															<Counter
+																value={line.quantity}
+																min={0}
+																disabled={!interactive}
+																valueLabel={addToCartLabel}
+																onValueChange={(nextQuantity) =>
+																	setCartLines((currentLines) => ({
+																		...currentLines,
+																		[item.id]: {
+																			id:
+																				currentLines[item.id]?.id ?? "",
+																			quantity: nextQuantity,
+																		},
+																	}))
+																}
+																onValueCommit={(nextQuantity) => {
+																	desiredItemQuantitiesRef.current.set(
+																		item.id,
+																		nextQuantity,
+																	);
+																	syncItemQuantity(item, nextQuantity);
+																}}
+																className="h-10 min-w-32 bg-[var(--photon-site-text)] text-[var(--photon-site-background)]"
+																buttonClassName="h-8 w-8 hover:bg-[color-mix(in_oklab,var(--photon-site-background)_14%,transparent)]"
+																valueClassName="h-8"
+															/>
+														) : (
+															<button
+																type="button"
+																disabled={!interactive}
+																onClick={() => queueItemQuantity(item, 1)}
+																className={cx.primaryButton}
+															>
+																{addToCartLabel}
+															</button>
+														)}
+														<button
+															type="button"
+															aria-label={block.props.cardCtaLabel}
+															className={`flex h-10 w-10 items-center justify-center rounded-full transition hover:text-[var(--photon-site-accent)] ${cx.mutedText}`}
+														>
+															<FavoriteIcon />
+														</button>
+														<PhotonLink
+															href={itemHref}
+															aria-label={block.props.cardCtaLabel}
+															className={`flex h-10 w-10 items-center justify-center rounded-full transition hover:text-[var(--photon-site-accent)] ${cx.mutedText}`}
+														>
+															<DetailIcon />
+														</PhotonLink>
+													</div>
+													{status === "error" ? (
+														<div className={`mt-2 text-sm ${cx.errorText}`}>
+															Unable to update cart
+														</div>
+													) : null}
+												</>
+											)}
+										</div>
+									</article>
+								);
+							})}
+						</div>
+						{isSwiper && items.length > 1 ? (
+							<div className="mt-4 flex items-center justify-center gap-1.5">
+								{items.map((item, dotIndex) => (
+									<span
+										key={item.id}
+										aria-hidden="true"
+										className={`h-1.5 rounded-full transition-all ${
+											dotIndex === activeSlide
+												? "w-5 bg-[var(--photon-site-accent)]"
+												: "w-1.5 bg-[color-mix(in_oklab,var(--photon-site-text)_25%,transparent)]"
+										}`}
+									/>
+								))}
+							</div>
+						) : null}
+					</>
 				) : (
 					<div className={cx.empty}>
 						<div className={`text-lg font-semibold ${cx.strongText}`}>
@@ -489,6 +643,10 @@ export const commerceProductGridDefinition: PhotonBlockDefinition<CommerceProduc
 			}),
 			columns: 3,
 			showDescription: true,
+			cardVariant: "default",
+			surface: "bare",
+			layout: "grid",
+			cardActions: "add-to-cart",
 		},
 		bindings: {
 			items: {
@@ -562,6 +720,50 @@ export const commerceProductGridDefinition: PhotonBlockDefinition<CommerceProduc
 				kind: "toggle",
 				group: "layout",
 				localization: "shared",
+			},
+			{
+				path: "cardVariant",
+				label: "Card variant",
+				kind: "select",
+				group: "layout",
+				localization: "shared",
+				options: [
+					{ value: "default", label: "Default" },
+					{ value: "marketplace", label: "Marketplace" },
+				],
+			},
+			{
+				path: "surface",
+				label: "Card surface",
+				kind: "select",
+				group: "layout",
+				localization: "shared",
+				options: [
+					{ value: "bare", label: "Bare" },
+					{ value: "beige", label: "Beige" },
+				],
+			},
+			{
+				path: "layout",
+				label: "Layout",
+				kind: "select",
+				group: "layout",
+				localization: "shared",
+				options: [
+					{ value: "grid", label: "Grid" },
+					{ value: "swiper", label: "Swiper" },
+				],
+			},
+			{
+				path: "cardActions",
+				label: "Card actions",
+				kind: "select",
+				group: "layout",
+				localization: "shared",
+				options: [
+					{ value: "add-to-cart", label: "Add to cart" },
+					{ value: "link-only", label: "Link only" },
+				],
 			},
 		],
 		component: CommerceProductGrid,

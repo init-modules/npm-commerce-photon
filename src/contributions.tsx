@@ -41,42 +41,29 @@ const hasCommerceBlock = (
 
 const hasCommerceRuntimeResource = (
 	context: PhotonSiteFrameContributionContext,
-) => {
-	const resources = context?.resources;
-	if (!resources) return false;
-	return (
-		[
-			"commerceCatalog",
-			"commerceCatalogItem",
-			"commerceProduct",
-			"commerceCheckout",
-			"commerceOrder",
-		].some((key) => resources[key] !== undefined) ||
-		getCommerceCartQuantity(
-			resources.commerceCartSummary as
-				| { items_quantity?: unknown; item_count?: unknown }
-				| null
-				| undefined,
-		) > 0
-	);
-};
+) =>
+	[
+		"commerceCatalog",
+		"commerceCatalogItem",
+		"commerceProduct",
+		"commerceCheckout",
+		"commerceOrder",
+	].some((key) => context.resources[key] !== undefined) ||
+	getCommerceCartQuantity(
+		context.resources.commerceCartSummary as
+			| { items_quantity?: unknown; item_count?: unknown }
+			| null
+			| undefined,
+	) > 0;
 
 const isCommerceSiteFrameVisible = (
 	context: PhotonSiteFrameContributionContext,
-) => {
-	if (!context) return false;
-	const documentBlocks = context.document?.blocks;
-	const siteRegions = context.site?.regions;
-	return (
-		hasCommerceBlock(documentBlocks) ||
-		(siteRegions
-			? Object.values(siteRegions).some((region) =>
-					hasCommerceBlock(region?.document?.blocks),
-				)
-			: false) ||
-		hasCommerceRuntimeResource(context)
-	);
-};
+) =>
+	hasCommerceBlock(context.document.blocks) ||
+	Object.values(context.site.regions).some((region) =>
+		hasCommerceBlock(region.document.blocks),
+	) ||
+	hasCommerceRuntimeResource(context);
 
 // --- Catalog link (header.prominent) ----------------------------------
 

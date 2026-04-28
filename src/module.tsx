@@ -11,7 +11,6 @@ import {
 	commerceCheckoutFormDefinition,
 	commerceOrderListDefinition,
 	commerceProductDetailDefinition,
-	commerceProductFiltersDefinition,
 	commerceProductGridDefinition,
 } from "./blocks";
 import { commercePhotonDocuments } from "./documents";
@@ -27,7 +26,6 @@ export const commercePhotonModule: PhotonModule = {
 	version: "0.1.0",
 	blocks: [
 		commerceProductGridDefinition,
-		commerceProductFiltersDefinition,
 		commerceProductDetailDefinition,
 		commerceAddToCartDefinition,
 		commerceCartSummaryDefinition,

@@ -28,59 +28,27 @@ import {
 	BreadcrumbPage,
 	BreadcrumbSeparator,
 	Counter,
+	type StepItem,
+	Steps,
 } from "@init/ui";
-import { CheckCircle2, X } from "lucide-react";
+import { CheckCircle2, ReceiptText, X } from "lucide-react";
 import type { ElementType, HTMLAttributes, ReactNode } from "react";
-import {
-	useCallback,
-	useEffect,
-	useMemo,
-	useReducer,
-	useRef,
-	useState,
-} from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shallow } from "zustand/shallow";
 import { useCommercePhotonClient } from "../client";
 import { debounceCallback } from "../helpers/debounce";
+import {
+	type CommerceCheckoutStepKey,
+	commerceCheckoutStepKeys,
+	resolveCommerceCheckoutStep,
+	toCommerceCheckoutStepKey,
+} from "./checkout-step";
+import { CommerceCheckoutSummary } from "./checkout-summary";
 import {
 	commerceBlockClassNames as cx,
 	emitCommerceCartUpdated,
 	formatCommerceMoney,
 } from "./shared";
-
-export type CommerceCheckoutStepKind =
-	| "cart"
-	| "delivery"
-	| "payment"
-	| "review"
-	| "confirm";
-
-export type CommerceCheckoutStepConfig = {
-	id: string;
-	kind: CommerceCheckoutStepKind;
-	enabled: boolean;
-	label: string;
-};
-
-export type CommerceCheckoutPaymentTypeKind =
-	| "cash"
-	| "card-online"
-	| "kaspi"
-	| "custom";
-
-export type CommerceCheckoutPaymentType = {
-	id: string;
-	label: string;
-	kind: CommerceCheckoutPaymentTypeKind;
-};
-
-export type CommerceCheckoutDeliveryTypeKind = "delivery" | "pickup";
-
-export type CommerceCheckoutDeliveryType = {
-	id: string;
-	label: string;
-	kind: CommerceCheckoutDeliveryTypeKind;
-};
 
 type CommerceCheckoutFormProps = {
 	eyebrow: string;
@@ -121,134 +89,6 @@ type CommerceCheckoutFormProps = {
 	trackOrderLabel: string;
 	cartHref: string;
 	accountOrdersHref: string;
-	steps: CommerceCheckoutStepConfig[];
-	paymentTypes: CommerceCheckoutPaymentType[];
-	deliveryTypes: CommerceCheckoutDeliveryType[];
-	mapEmbedUrl: string;
-	promoEnabled: boolean;
-	minOrderAmount: number;
-	nextLabel?: string;
-	prevLabel?: string;
-	deliveryAddressLabel?: string;
-	deliveryAddressPlaceholder?: string;
-	pickupPointLabel?: string;
-	pickupPointPlaceholder?: string;
-	promoCodeLabel?: string;
-	promoCodePlaceholder?: string;
-	commentLabel?: string;
-	commentPlaceholder?: string;
-	reviewTitle?: string;
-	reviewDeliveryLabel?: string;
-	reviewPaymentLabel?: string;
-	reviewContactLabel?: string;
-	confirmCtaLabel?: string;
-	confirmCtaHref?: string;
-	minOrderWarningLabel?: string;
-	cartHeadingLabel?: string;
-	continueShoppingLabel?: string;
-};
-
-export type CommerceCheckoutFormData = {
-	delivery: { typeId?: string; address?: string; pickupPointId?: string };
-	payment: { typeId?: string; promoCode?: string };
-	contact: { name?: string; phone?: string; email?: string; comment?: string };
-};
-
-const defaultCheckoutSteps: CommerceCheckoutStepConfig[] = [
-	{ id: "cart", kind: "cart", enabled: true, label: "Cart" },
-	{ id: "delivery", kind: "delivery", enabled: true, label: "Delivery" },
-	{ id: "payment", kind: "payment", enabled: true, label: "Payment" },
-	{ id: "review", kind: "review", enabled: true, label: "Review" },
-	{ id: "confirm", kind: "confirm", enabled: true, label: "Confirm" },
-];
-
-type CheckoutFormDataAction =
-	| {
-			type: "set-delivery";
-			value: Partial<CommerceCheckoutFormData["delivery"]>;
-	  }
-	| {
-			type: "set-payment";
-			value: Partial<CommerceCheckoutFormData["payment"]>;
-	  }
-	| {
-			type: "set-contact";
-			value: Partial<CommerceCheckoutFormData["contact"]>;
-	  }
-	| { type: "reset" };
-
-const checkoutFormDataInitial: CommerceCheckoutFormData = {
-	delivery: {},
-	payment: {},
-	contact: {},
-};
-
-const checkoutFormDataReducer = (
-	state: CommerceCheckoutFormData,
-	action: CheckoutFormDataAction,
-): CommerceCheckoutFormData => {
-	switch (action.type) {
-		case "set-delivery":
-			return { ...state, delivery: { ...state.delivery, ...action.value } };
-		case "set-payment":
-			return { ...state, payment: { ...state.payment, ...action.value } };
-		case "set-contact":
-			return { ...state, contact: { ...state.contact, ...action.value } };
-		case "reset":
-			return checkoutFormDataInitial;
-		default:
-			return state;
-	}
-};
-
-type CheckoutValidation = {
-	valid: boolean;
-	errors: Record<string, string>;
-};
-
-const validateStep = (
-	stepKind: CommerceCheckoutStepKind,
-	formData: CommerceCheckoutFormData,
-	deliveryTypes: CommerceCheckoutDeliveryType[],
-	paymentTypes: CommerceCheckoutPaymentType[],
-): CheckoutValidation => {
-	const errors: Record<string, string> = {};
-
-	if (stepKind === "delivery" && deliveryTypes.length > 0) {
-		if (!formData.delivery.typeId) {
-			errors.typeId = "Select a delivery option";
-		} else {
-			const selected = deliveryTypes.find(
-				(item) => item.id === formData.delivery.typeId,
-			);
-			if (selected?.kind === "delivery" && !formData.delivery.address?.trim()) {
-				errors.address = "Address is required";
-			}
-			if (
-				selected?.kind === "pickup" &&
-				!formData.delivery.pickupPointId?.trim()
-			) {
-				errors.pickupPointId = "Pickup point is required";
-			}
-		}
-	}
-
-	if (stepKind === "payment" && paymentTypes.length > 0) {
-		if (!formData.payment.typeId) {
-			errors.typeId = "Select a payment method";
-		}
-	}
-
-	if (stepKind === "review") {
-		if (!formData.contact.name?.trim()) {
-			errors.name = "Name is required";
-		}
-		if (!formData.contact.phone?.trim()) {
-			errors.phone = "Phone is required";
-		}
-	}
-
-	return { valid: Object.keys(errors).length === 0, errors };
 };
 
 const checkoutDefaultFields: PhotonFormFieldDefinition[] = [
@@ -345,6 +185,143 @@ const checkoutFormFieldsField = createPhotonFormFieldsField("fields", {
 	},
 });
 
+const createCartSummarySteps = (locale: string) =>
+	[
+		{
+			title: locale === "ru" ? "Корзина" : "Cart",
+			description: locale === "ru" ? "Проверьте позиции" : "Review items",
+		},
+		{
+			title: locale === "ru" ? "Оформление" : "Checkout",
+			description: locale === "ru" ? "Контакты и заказ" : "Contacts and order",
+		},
+		{
+			title: locale === "ru" ? "Готово" : "Done",
+			description: locale === "ru" ? "Заказ создан" : "Order placed",
+		},
+	] as const;
+
+const checkoutCartStepHref = "/checkout?checkoutStep=cart";
+
+const isLegacyCartPageHref = (href: string) => {
+	const [pathname] = href.split(/[?#]/);
+	const pathSegments = (pathname ?? "").split("/").filter(Boolean);
+
+	return pathSegments.length === 1 && pathSegments[0] === "cart";
+};
+
+const normalizeCheckoutCartHref = (href: unknown) => {
+	if (typeof href !== "string") {
+		return checkoutCartStepHref;
+	}
+
+	const normalizedHref = href.trim();
+
+	return normalizedHref && !isLegacyCartPageHref(normalizedHref)
+		? normalizedHref
+		: checkoutCartStepHref;
+};
+
+const commerceItemImageKeys = [
+	"coverImage",
+	"cover_image",
+	"image",
+	"image_url",
+	"thumbnail",
+	"thumbnail_url",
+	"media_url",
+] as const;
+
+const commerceItemImageObjectKeys = [
+	"cover",
+	"image",
+	"thumbnail",
+	"media",
+] as const;
+
+const readRecordString = (
+	record: Record<string, unknown> | null | undefined,
+	key: string,
+) => {
+	const value = record?.[key];
+
+	return typeof value === "string" && value.trim() ? value.trim() : null;
+};
+
+const readImageFromRecord = (
+	record: Record<string, unknown> | null | undefined,
+) => {
+	if (!record) {
+		return null;
+	}
+
+	for (const key of commerceItemImageKeys) {
+		const value = readRecordString(record, key);
+
+		if (value) {
+			return value;
+		}
+	}
+
+	for (const key of commerceItemImageObjectKeys) {
+		const value = record[key];
+
+		if (typeof value === "string" && value.trim()) {
+			return value.trim();
+		}
+
+		if (typeof value === "object" && value !== null) {
+			const nested = value as Record<string, unknown>;
+			const nestedValue =
+				readRecordString(nested, "url") ??
+				readRecordString(nested, "src") ??
+				readRecordString(nested, "path");
+
+			if (nestedValue) {
+				return nestedValue;
+			}
+		}
+	}
+
+	return null;
+};
+
+const resolveCommerceItemImage = (item: CommerceCartItem) => {
+	const itemRecord = item as CommerceCartItem & Record<string, unknown>;
+
+	return (
+		readImageFromRecord(itemRecord) ??
+		readImageFromRecord(item.catalog_snapshot) ??
+		readImageFromRecord(item.pricing_snapshot) ??
+		readImageFromRecord(item.meta)
+	);
+};
+
+const CommerceOrderItemMedia = ({ item }: { item: CommerceCartItem }) => {
+	const image = resolveCommerceItemImage(item);
+	const name = item.name?.trim() || "Item";
+	const fallbackInitial = name.slice(0, 1).toUpperCase();
+
+	if (image) {
+		return (
+			<img
+				src={image}
+				alt=""
+				className="h-14 w-14 shrink-0 rounded-md border border-[color:var(--photon-site-border)] bg-[color-mix(in_oklab,var(--photon-site-surface)_72%,var(--photon-site-background))] object-cover sm:h-16 sm:w-16"
+			/>
+		);
+	}
+
+	return (
+		<div
+			aria-hidden="true"
+			className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md border border-[color:var(--photon-site-border)] bg-[color-mix(in_oklab,var(--photon-site-surface)_72%,var(--photon-site-background))] text-sm font-semibold text-[var(--photon-site-accent)] sm:h-16 sm:w-16"
+		>
+			{fallbackInitial}
+		</div>
+	);
+};
+
 type CheckoutTextProps = HTMLAttributes<HTMLElement> & {
 	blockId: string;
 	path: string;
@@ -385,432 +362,27 @@ const CheckoutText = ({
 	);
 };
 
-
-const readCheckoutStepIdFromLocation = (): string | null => {
+const readCheckoutStepFromLocation = (): CommerceCheckoutStepKey | null => {
 	if (typeof window === "undefined") {
 		return null;
 	}
 
-	return new URLSearchParams(window.location.search).get("checkoutStep");
+	return toCommerceCheckoutStepKey(
+		new URLSearchParams(window.location.search).get("checkoutStep"),
+	);
 };
 
-const writeCheckoutStepToLocation = (
-	stepId: string,
-	method: "push" | "replace",
-) => {
-	if (typeof window === "undefined") {
-		return;
+const readCheckoutStepFromResources = (
+	resources: Record<string, unknown>,
+): CommerceCheckoutStepKey | null => {
+	const commerceCheckout = resources.commerceCheckout;
+
+	if (typeof commerceCheckout !== "object" || commerceCheckout === null) {
+		return null;
 	}
 
-	const url = new URL(window.location.href);
-	url.searchParams.set("checkoutStep", stepId);
-	const nextHref = `${url.pathname}?${url.searchParams.toString()}${url.hash}`;
-
-	if (
-		`${window.location.pathname}${window.location.search}${window.location.hash}` ===
-		nextHref
-	) {
-		return;
-	}
-
-	if (method === "replace") {
-		window.history.replaceState({ checkoutStep: stepId }, "", nextHref);
-		return;
-	}
-
-	window.history.pushState({ checkoutStep: stepId }, "", nextHref);
-};
-
-const resolveEnabledCheckoutSteps = (
-	steps: CommerceCheckoutStepConfig[] | undefined,
-): CommerceCheckoutStepConfig[] => {
-	const source = Array.isArray(steps) && steps.length > 0 ? steps : defaultCheckoutSteps;
-	return source.filter((step) => step.enabled !== false);
-};
-
-const findCheckoutStepIndexById = (
-	enabled: CommerceCheckoutStepConfig[],
-	stepId: string | null,
-): number => {
-	if (!stepId) return -1;
-	const directIndex = enabled.findIndex((step) => step.id === stepId);
-	if (directIndex >= 0) return directIndex;
-	const kindIndex = enabled.findIndex((step) => step.kind === stepId);
-	return kindIndex;
-};
-
-type CartLineItemsProps = {
-	items: CommerceCartItem[];
-	currency: string;
-	contentLocale: string;
-	applyItemQuantity: (itemId: string, nextQuantity: number) => unknown;
-	setItemQuantity: (itemId: string, nextQuantity: number) => void;
-};
-
-const CartLineItems = ({
-	items,
-	currency,
-	contentLocale,
-	applyItemQuantity,
-	setItemQuantity,
-}: CartLineItemsProps) => (
-	<div className={`overflow-hidden ${cx.surface}`}>
-		{items.map((item) => (
-			<div
-				key={item.id}
-				className="grid gap-4 border-b border-[color:var(--photon-site-border)] p-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto]"
-			>
-				<div className="min-w-0">
-					<div className={`font-semibold ${cx.strongText}`}>{item.name}</div>
-					<div className={`mt-1 text-sm ${cx.mutedText}`}>
-						{formatCommerceMoney(item.unit_price, currency, contentLocale)}
-					</div>
-					<div className="mt-4 flex items-center gap-3">
-						<Counter
-							value={item.quantity}
-							min={0}
-							valueLabel={item.name ?? "Quantity"}
-							onValueChange={(nextQuantity) => {
-								const nextCart = applyItemQuantity(item.id, nextQuantity);
-								if (nextCart) {
-									emitCommerceCartUpdated(nextCart as never);
-								}
-							}}
-							onValueCommit={(nextQuantity) =>
-								setItemQuantity(item.id, nextQuantity)
-							}
-							className="h-10 min-w-32 border-[var(--photon-site-border)] bg-[color-mix(in_oklab,var(--photon-site-background)_86%,black)] text-[var(--photon-site-text)]"
-							buttonClassName="h-8 w-8 hover:bg-[color-mix(in_oklab,var(--photon-site-accent)_18%,transparent)]"
-							valueClassName="h-8"
-						/>
-						<button
-							type="button"
-							aria-label="Remove item"
-							onClick={() => setItemQuantity(item.id, 0)}
-							className={`flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--photon-site-border)] transition hover:border-[var(--photon-site-accent)] hover:text-[var(--photon-site-accent)] ${cx.mutedText}`}
-						>
-							<X className="h-4 w-4" />
-						</button>
-					</div>
-				</div>
-				<div className={`font-semibold ${cx.strongText}`}>
-					{formatCommerceMoney(item.line_total, currency, contentLocale)}
-				</div>
-			</div>
-		))}
-	</div>
-);
-
-type DeliveryStepProps = {
-	deliveryTypes: CommerceCheckoutDeliveryType[];
-	mapEmbedUrl: string;
-	delivery: CommerceCheckoutFormData["delivery"];
-	errors: Record<string, string>;
-	addressLabel: string;
-	addressPlaceholder: string;
-	pickupLabel: string;
-	pickupPlaceholder: string;
-	onUpdate: (value: Partial<CommerceCheckoutFormData["delivery"]>) => void;
-};
-
-const DeliveryStep = ({
-	deliveryTypes,
-	mapEmbedUrl,
-	delivery,
-	errors,
-	addressLabel,
-	addressPlaceholder,
-	pickupLabel,
-	pickupPlaceholder,
-	onUpdate,
-}: DeliveryStepProps) => {
-	const selected = deliveryTypes.find((item) => item.id === delivery.typeId);
-
-	return (
-		<div className="grid gap-5">
-			{deliveryTypes.length === 0 ? (
-				<div className={`${cx.empty} text-sm`}>
-					{/* TODO: configure deliveryTypes via inspector */}
-					No delivery options configured.
-				</div>
-			) : (
-				<div className="flex flex-wrap gap-2">
-					{deliveryTypes.map((item) => {
-						const active = delivery.typeId === item.id;
-						return (
-							<button
-								key={item.id}
-								type="button"
-								onClick={() => onUpdate({ typeId: item.id })}
-								className={
-									active
-										? cx.primaryButton
-										: cx.secondaryButton
-								}
-							>
-								{item.label}
-							</button>
-						);
-					})}
-				</div>
-			)}
-			{errors.typeId ? (
-				<div className={`text-sm ${cx.errorText}`}>{errors.typeId}</div>
-			) : null}
-
-			{selected?.kind === "delivery" ? (
-				<label className={`grid gap-2 text-sm font-medium ${cx.mutedText}`}>
-					<span className="font-medium">{addressLabel}</span>
-					<input
-						type="text"
-						value={delivery.address ?? ""}
-						placeholder={addressPlaceholder}
-						onChange={(event) => onUpdate({ address: event.target.value })}
-						className={cx.input}
-					/>
-					{errors.address ? (
-						<span className={`text-xs ${cx.errorText}`}>{errors.address}</span>
-					) : null}
-				</label>
-			) : null}
-
-			{selected?.kind === "pickup" ? (
-				<label className={`grid gap-2 text-sm font-medium ${cx.mutedText}`}>
-					<span className="font-medium">{pickupLabel}</span>
-					{/* TODO: read pickup points from binding source `commerce.pickupPoints` */}
-					<input
-						type="text"
-						value={delivery.pickupPointId ?? ""}
-						placeholder={pickupPlaceholder}
-						onChange={(event) => onUpdate({ pickupPointId: event.target.value })}
-						className={cx.input}
-					/>
-					{errors.pickupPointId ? (
-						<span className={`text-xs ${cx.errorText}`}>
-							{errors.pickupPointId}
-						</span>
-					) : null}
-				</label>
-			) : null}
-
-			{mapEmbedUrl ? (
-				<iframe
-					src={mapEmbedUrl}
-					title="Delivery area map"
-					className="h-72 w-full rounded-lg border border-[color:var(--photon-site-border)]"
-				/>
-			) : null}
-		</div>
-	);
-};
-
-type PaymentStepProps = {
-	paymentTypes: CommerceCheckoutPaymentType[];
-	promoEnabled: boolean;
-	payment: CommerceCheckoutFormData["payment"];
-	errors: Record<string, string>;
-	promoLabel: string;
-	promoPlaceholder: string;
-	onUpdate: (value: Partial<CommerceCheckoutFormData["payment"]>) => void;
-};
-
-const PaymentStep = ({
-	paymentTypes,
-	promoEnabled,
-	payment,
-	errors,
-	promoLabel,
-	promoPlaceholder,
-	onUpdate,
-}: PaymentStepProps) => {
-	const selected = paymentTypes.find((item) => item.id === payment.typeId);
-
-	return (
-		<div className="grid gap-5">
-			{paymentTypes.length === 0 ? (
-				<div className={`${cx.empty} text-sm`}>
-					{/* TODO: configure paymentTypes via inspector */}
-					No payment methods configured.
-				</div>
-			) : (
-				<div className="grid gap-2">
-					{paymentTypes.map((item) => {
-						const active = payment.typeId === item.id;
-						return (
-							<label
-								key={item.id}
-								className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm ${
-									active
-										? "border-[var(--photon-site-accent)] bg-[color-mix(in_oklab,var(--photon-site-accent)_8%,var(--photon-site-surface))]"
-										: "border-[color:var(--photon-site-border)] bg-[var(--photon-site-surface)]"
-								}`}
-							>
-								<input
-									type="radio"
-									name="commerce-checkout-payment"
-									checked={active}
-									onChange={() => onUpdate({ typeId: item.id })}
-								/>
-								<span className={cx.strongText}>{item.label}</span>
-							</label>
-						);
-					})}
-				</div>
-			)}
-			{errors.typeId ? (
-				<div className={`text-sm ${cx.errorText}`}>{errors.typeId}</div>
-			) : null}
-
-			{selected?.kind === "card-online" ? (
-				<div className={`${cx.surface} p-3 text-xs ${cx.mutedText}`}>
-					{/* TODO: integrate payment provider */}
-					Card payment integration pending.
-				</div>
-			) : null}
-
-			{promoEnabled ? (
-				<label className={`grid gap-2 text-sm font-medium ${cx.mutedText}`}>
-					<span className="font-medium">{promoLabel}</span>
-					<input
-						type="text"
-						value={payment.promoCode ?? ""}
-						placeholder={promoPlaceholder}
-						onChange={(event) => onUpdate({ promoCode: event.target.value })}
-						className={cx.input}
-					/>
-				</label>
-			) : null}
-		</div>
-	);
-};
-
-type ReviewStepProps = {
-	formData: CommerceCheckoutFormData;
-	deliveryTypes: CommerceCheckoutDeliveryType[];
-	paymentTypes: CommerceCheckoutPaymentType[];
-	cartTotal: number | string | null | undefined;
-	currency: string;
-	contentLocale: string;
-	errors: Record<string, string>;
-	deliveryLabel: string;
-	paymentLabel: string;
-	contactLabel: string;
-	totalLabel: string;
-	nameLabel: string;
-	phoneLabel: string;
-	emailLabel: string;
-	commentLabel: string;
-	commentPlaceholder: string;
-	onUpdate: (value: Partial<CommerceCheckoutFormData["contact"]>) => void;
-};
-
-const ReviewStep = ({
-	formData,
-	deliveryTypes,
-	paymentTypes,
-	cartTotal,
-	currency,
-	contentLocale,
-	errors,
-	deliveryLabel,
-	paymentLabel,
-	contactLabel,
-	totalLabel,
-	nameLabel,
-	phoneLabel,
-	emailLabel,
-	commentLabel,
-	commentPlaceholder,
-	onUpdate,
-}: ReviewStepProps) => {
-	const deliveryType = deliveryTypes.find(
-		(item) => item.id === formData.delivery.typeId,
-	);
-	const paymentType = paymentTypes.find(
-		(item) => item.id === formData.payment.typeId,
-	);
-
-	return (
-		<div className="grid gap-5">
-			<div className={`grid gap-3 p-4 ${cx.surface}`}>
-				<div className={`text-xs uppercase tracking-wider ${cx.mutedText}`}>
-					{deliveryLabel}
-				</div>
-				<div className={`text-sm ${cx.strongText}`}>
-					{deliveryType?.label ?? "—"}
-					{formData.delivery.address ? ` · ${formData.delivery.address}` : ""}
-					{formData.delivery.pickupPointId
-						? ` · ${formData.delivery.pickupPointId}`
-						: ""}
-				</div>
-			</div>
-			<div className={`grid gap-3 p-4 ${cx.surface}`}>
-				<div className={`text-xs uppercase tracking-wider ${cx.mutedText}`}>
-					{paymentLabel}
-				</div>
-				<div className={`text-sm ${cx.strongText}`}>
-					{paymentType?.label ?? "—"}
-					{formData.payment.promoCode ? ` · ${formData.payment.promoCode}` : ""}
-				</div>
-			</div>
-
-			<div className={`grid gap-4 p-4 ${cx.surface}`}>
-				<div className={`text-xs uppercase tracking-wider ${cx.mutedText}`}>
-					{contactLabel}
-				</div>
-				<label className={`grid gap-2 text-sm font-medium ${cx.mutedText}`}>
-					<span className="font-medium">{nameLabel}</span>
-					<input
-						type="text"
-						value={formData.contact.name ?? ""}
-						onChange={(event) => onUpdate({ name: event.target.value })}
-						className={cx.input}
-					/>
-					{errors.name ? (
-						<span className={`text-xs ${cx.errorText}`}>{errors.name}</span>
-					) : null}
-				</label>
-				<label className={`grid gap-2 text-sm font-medium ${cx.mutedText}`}>
-					<span className="font-medium">{phoneLabel}</span>
-					<input
-						type="tel"
-						value={formData.contact.phone ?? ""}
-						onChange={(event) => onUpdate({ phone: event.target.value })}
-						className={cx.input}
-					/>
-					{errors.phone ? (
-						<span className={`text-xs ${cx.errorText}`}>{errors.phone}</span>
-					) : null}
-				</label>
-				<label className={`grid gap-2 text-sm font-medium ${cx.mutedText}`}>
-					<span className="font-medium">{emailLabel}</span>
-					<input
-						type="email"
-						value={formData.contact.email ?? ""}
-						onChange={(event) => onUpdate({ email: event.target.value })}
-						className={cx.input}
-					/>
-				</label>
-				<label className={`grid gap-2 text-sm font-medium ${cx.mutedText}`}>
-					<span className="font-medium">{commentLabel}</span>
-					<textarea
-						value={formData.contact.comment ?? ""}
-						placeholder={commentPlaceholder}
-						onChange={(event) => onUpdate({ comment: event.target.value })}
-						className={`${cx.input} h-24 py-2`}
-					/>
-				</label>
-			</div>
-
-			<div
-				className={`flex items-center justify-between rounded-lg p-4 ${cx.mutedSurface}`}
-			>
-				<div className={`text-sm ${cx.mutedText}`}>{totalLabel}</div>
-				<div className={`text-2xl font-semibold ${cx.strongText}`}>
-					{formatCommerceMoney(cartTotal, currency, contentLocale)}
-				</div>
-			</div>
-		</div>
+	return toCommerceCheckoutStepKey(
+		(commerceCheckout as { requestedStep?: unknown }).requestedStep,
 	);
 };
 
@@ -822,20 +394,10 @@ const CommerceCheckoutForm = ({
 	const authResource = resources.auth as
 		| { user?: null | Record<string, unknown> }
 		| undefined;
-	const enabledSteps = useMemo(
-		() => resolveEnabledCheckoutSteps(block.props.steps),
-		[block.props.steps],
-	);
-	const [currentStepIndex, setCurrentStepIndex] = useState<number>(() => {
-		const fromQuery = readCheckoutStepIdFromLocation();
-		const found = findCheckoutStepIndexById(enabledSteps, fromQuery);
-		return found >= 0 ? found : 0;
-	});
-	const [formData, dispatchFormData] = useReducer(
-		checkoutFormDataReducer,
-		checkoutFormDataInitial,
-	);
-	const [stepErrors, setStepErrors] = useState<Record<string, string>>({});
+	const resourceRequestedStep = readCheckoutStepFromResources(resources);
+	const [requestedStep, setRequestedStep] =
+		useState<CommerceCheckoutStepKey | null>(() => resourceRequestedStep);
+	const [useCompactSteps, setUseCompactSteps] = useState(false);
 	const { applyItemQuantity, cart, setCart } = useCommerceCartStore(
 		(state) => ({
 			applyItemQuantity: state.applyItemQuantity,
@@ -852,113 +414,43 @@ const CommerceCheckoutForm = ({
 	);
 	const desiredItemQuantitiesRef = useRef(new Map<string, number>());
 	const client = useCommercePhotonClient();
+	const writeCheckoutStep = useCallback(
+		(nextIndex: number, method: "push" | "replace") => {
+			const boundedIndex = Math.max(
+				0,
+				Math.min(commerceCheckoutStepKeys.length - 1, nextIndex),
+			);
+			const step = commerceCheckoutStepKeys[boundedIndex] ?? "checkout";
+			setRequestedStep(step);
 
-	const ru = contentLocale === "ru";
-	const fallbackText = {
-		breadcrumbCartLabel: ru ? "Корзина" : "Cart",
-		breadcrumbCheckoutLabel: ru ? "Оформить заказ" : "Checkout",
-		cartCheckoutLabel: ru ? "Оформить заказ" : "Checkout",
-		cartEmptyBody: ru
-			? "Добавьте товар из каталога, чтобы перейти к оформлению."
-			: "Add a catalog item to start checkout.",
-		cartEmptyTitle: ru ? "Корзина пуста" : "Your cart is empty",
-		cartCatalogLabel: ru ? "Назад в каталог" : "Back to catalog",
-		cartEyebrow: ru ? "Корзина" : "Cart",
-		cartStepDescription: ru ? "Проверьте позиции" : "Review items",
-		cartStepTitle: ru ? "Корзина" : "Cart",
-		cartTitle: ru ? "Ваша корзина" : "Your cart",
-		checkoutStepDescription: ru ? "Контакты и заказ" : "Contacts and order",
-		checkoutStepTitle: ru ? "Оформление" : "Checkout",
-		doneStepDescription: ru ? "Заказ создан" : "Order placed",
-		doneStepTitle: ru ? "Заказ оформлен" : "Order confirmed",
-		errorLabel: ru ? "Не удалось разместить заказ" : "Unable to place order",
-		orderDetailsTitle: ru ? "Детали заказа" : "Order details",
-		orderNumberLabel: ru ? "Номер заказа" : "Order number",
-		orderStatusLabel: ru ? "Статус" : "Status",
-		orderTotalLabel: ru ? "Итого" : "Total",
-		savingLabel: ru ? "Размещаем..." : "Placing...",
-		submitLabel: ru ? "Разместить заказ" : "Place order",
-		successBody: ru
-			? "Мы сохранили заказ и будем обновлять его статус в личном кабинете."
-			: "We saved your order and will keep its status updated in your account.",
-		successTitle: ru ? "Заказ оформлен" : "Order confirmed",
-		summaryEmptyBody: ru ? "Корзина пуста." : "Cart is empty.",
-		summaryReturnLabel: ru ? "Вернуться в корзину" : "Return to cart",
-		summaryTitle: ru ? "Корзина" : "Cart",
-		summaryTotalLabel: ru ? "Итого" : "Total",
-		trackOrderLabel: ru
-			? "Отслеживать статус заказа в личном кабинете"
-			: "Track order status in your account",
-		nextLabel: ru ? "Далее" : "Next",
-		prevLabel: ru ? "Назад" : "Back",
-		deliveryAddressLabel: ru ? "Адрес доставки" : "Delivery address",
-		deliveryAddressPlaceholder: ru ? "Введите адрес" : "Enter address",
-		pickupPointLabel: ru ? "Точка самовывоза" : "Pickup point",
-		pickupPointPlaceholder: ru ? "Выберите точку" : "Choose pickup point",
-		promoCodeLabel: ru ? "Промокод" : "Promo code",
-		promoCodePlaceholder: ru ? "Введите промокод" : "Enter promo code",
-		commentLabel: ru ? "Комментарий" : "Comment",
-		commentPlaceholder: ru ? "Пожелания к заказу" : "Order notes",
-		reviewTitle: ru ? "Проверка заказа" : "Review",
-		reviewDeliveryLabel: ru ? "Доставка" : "Delivery",
-		reviewPaymentLabel: ru ? "Оплата" : "Payment",
-		reviewContactLabel: ru ? "Контакты" : "Contact",
-		confirmCtaLabel: ru ? "Заказ оформлен!" : "Order placed!",
-		continueShoppingLabel: ru ? "Продолжить покупки" : "Continue shopping",
-		minOrderWarningLabel: ru
-			? "Минимальная сумма заказа не достигнута."
-			: "Minimum order amount not reached.",
-		cartHeadingLabel: ru ? "Ваша корзина" : "Your cart",
-	};
-	const getFallbackText = (key: keyof typeof fallbackText) =>
-		String(block.props[key as keyof CommerceCheckoutFormProps] ?? fallbackText[key]);
-
-	const items = cart?.items ?? [];
-	const hasItems = items.length > 0;
-	const cartTotal =
-		typeof cart?.total_amount === "number" ? cart.total_amount : 0;
-	const minOrderAmount =
-		typeof block.props.minOrderAmount === "number" && block.props.minOrderAmount > 0
-			? block.props.minOrderAmount
-			: 0;
-	const belowMinOrder = minOrderAmount > 0 && cartTotal < minOrderAmount;
-
-	const goToIndex = useCallback(
-		(nextIndex: number, method: "push" | "replace" = "push") => {
-			const bounded = Math.max(0, Math.min(enabledSteps.length - 1, nextIndex));
-			const step = enabledSteps[bounded];
-			setCurrentStepIndex(bounded);
-			setStepErrors({});
-			if (step) {
-				writeCheckoutStepToLocation(step.id, method);
+			if (typeof window === "undefined") {
+				return;
 			}
+
+			const url = new URL(window.location.href);
+			url.searchParams.set("checkoutStep", step);
+			const nextHref = `${url.pathname}?${url.searchParams.toString()}${url.hash}`;
+
+			if (
+				`${window.location.pathname}${window.location.search}${window.location.hash}` ===
+				nextHref
+			) {
+				return;
+			}
+
+			if (method === "replace") {
+				window.history.replaceState({ checkoutStep: step }, "", nextHref);
+				return;
+			}
+
+			window.history.pushState({ checkoutStep: step }, "", nextHref);
 		},
-		[enabledSteps],
+		[],
 	);
-
-	const currentStep = enabledSteps[currentStepIndex] ?? enabledSteps[0];
-	const currentStepKind = currentStep?.kind ?? "cart";
-
-	const goNext = useCallback(() => {
-		const validation = validateStep(
-			currentStepKind,
-			formData,
-			block.props.deliveryTypes ?? [],
-			block.props.paymentTypes ?? [],
-		);
-		if (!validation.valid) {
-			setStepErrors(validation.errors);
-			return;
-		}
-		setStepErrors({});
-		goToIndex(currentStepIndex + 1);
-	}, [currentStepIndex, currentStepKind, formData, block.props.deliveryTypes, block.props.paymentTypes, goToIndex]);
-
-	const goPrev = useCallback(() => {
-		setStepErrors({});
-		goToIndex(currentStepIndex - 1);
-	}, [currentStepIndex, goToIndex]);
-
+	const pushCheckoutStep = useCallback(
+		(nextIndex: number) => writeCheckoutStep(nextIndex, "push"),
+		[writeCheckoutStep],
+	);
 	const syncItemQuantityNow = useCallback(
 		async (itemId: string, nextQuantity: number) => {
 			if (mode !== "preview") {
@@ -1019,17 +511,25 @@ const CommerceCheckoutForm = ({
 			return;
 		}
 
-		const syncStep = () => {
-			const fromQuery = readCheckoutStepIdFromLocation();
-			const found = findCheckoutStepIndexById(enabledSteps, fromQuery);
-			if (found >= 0) {
-				setCurrentStepIndex(found);
-			}
-		};
+		const mediaQuery = window.matchMedia("(max-width: 639px)");
+		const syncCompactSteps = () => setUseCompactSteps(mediaQuery.matches);
+
+		syncCompactSteps();
+		mediaQuery.addEventListener("change", syncCompactSteps);
+
+		return () => mediaQuery.removeEventListener("change", syncCompactSteps);
+	}, []);
+
+	useEffect(() => {
+		if (typeof window === "undefined") {
+			return;
+		}
+
+		const syncStep = () => setRequestedStep(readCheckoutStepFromLocation());
 		window.addEventListener("popstate", syncStep);
 
 		return () => window.removeEventListener("popstate", syncStep);
-	}, [enabledSteps]);
+	}, []);
 
 	useEffect(() => {
 		if (mode !== "preview") {
@@ -1071,6 +571,126 @@ const CommerceCheckoutForm = ({
 		};
 	}, [cart, client, mode, order, setCart]);
 
+	const ru = contentLocale === "ru";
+	const fallbackText = {
+		breadcrumbCartLabel: ru ? "Корзина" : "Cart",
+		breadcrumbCheckoutLabel: ru ? "Оформить заказ" : "Checkout",
+		cartCheckoutLabel: ru ? "Оформить заказ" : "Checkout",
+		cartEmptyBody: ru
+			? "Добавьте товар из каталога, чтобы перейти к оформлению."
+			: "Add a catalog item to start checkout.",
+		cartEmptyTitle: ru ? "Корзина пуста" : "Your cart is empty",
+		cartCatalogLabel: ru ? "Назад в каталог" : "Back to catalog",
+		cartEyebrow: ru ? "Корзина" : "Cart",
+		cartStepDescription: ru ? "Проверьте позиции" : "Review items",
+		cartStepTitle: ru ? "Корзина" : "Cart",
+		cartTitle: ru ? "Ваша корзина" : "Your cart",
+		checkoutStepDescription: ru ? "Контакты и заказ" : "Contacts and order",
+		checkoutStepTitle: ru ? "Оформление" : "Checkout",
+		doneStepDescription: ru ? "Заказ создан" : "Order placed",
+		doneStepTitle: ru ? "Заказ оформлен" : "Order confirmed",
+		errorLabel: ru ? "Не удалось разместить заказ" : "Unable to place order",
+		orderDetailsTitle: ru ? "Детали заказа" : "Order details",
+		orderNumberLabel: ru ? "Номер заказа" : "Order number",
+		orderStatusLabel: ru ? "Статус" : "Status",
+		orderTotalLabel: ru ? "Итого" : "Total",
+		savingLabel: ru ? "Размещаем..." : "Placing...",
+		submitLabel: ru ? "Разместить заказ" : "Place order",
+		successBody: ru
+			? "Мы сохранили заказ и будем обновлять его статус в личном кабинете."
+			: "We saved your order and will keep its status updated in your account.",
+		successTitle: ru ? "Заказ оформлен" : "Order confirmed",
+		summaryEmptyBody: ru ? "Корзина пуста." : "Cart is empty.",
+		summaryReturnLabel: ru ? "Вернуться в корзину" : "Return to cart",
+		summaryTitle: ru ? "Корзина" : "Cart",
+		summaryTotalLabel: ru ? "Итого" : "Total",
+		trackOrderLabel: ru
+			? "Отслеживать статус заказа в личном кабинете"
+			: "Track order status in your account",
+	};
+	const getFallbackText = (key: keyof typeof fallbackText) =>
+		String(block.props[key] ?? fallbackText[key]);
+	const items = cart?.items ?? [];
+	const hasItems = items.length > 0;
+	const activeStep = resolveCommerceCheckoutStep({
+		hasItems,
+		hasOrder: Boolean(order),
+		requestedStep,
+	});
+	const activeStepIndex = commerceCheckoutStepKeys.indexOf(activeStep);
+
+	useEffect(() => {
+		if (typeof window === "undefined") {
+			return;
+		}
+
+		const browserRequestedStep = readCheckoutStepFromLocation();
+
+		if (browserRequestedStep && browserRequestedStep !== activeStep) {
+			writeCheckoutStep(activeStepIndex, "replace");
+		}
+	}, [activeStep, activeStepIndex, writeCheckoutStep]);
+
+	const steps: StepItem[] = [
+		{
+			disabled: Boolean(order),
+			title: (
+				<CheckoutText
+					blockId={block.id}
+					path="cartStepTitle"
+					placeholder={getFallbackText("cartStepTitle")}
+					className="font-semibold"
+				/>
+			),
+			description: (
+				<CheckoutText
+					blockId={block.id}
+					path="cartStepDescription"
+					placeholder={getFallbackText("cartStepDescription")}
+					className="text-xs"
+				/>
+			),
+		},
+		{
+			disabled: Boolean(order) || !hasItems,
+			title: (
+				<CheckoutText
+					blockId={block.id}
+					path="checkoutStepTitle"
+					placeholder={getFallbackText("checkoutStepTitle")}
+					className="font-semibold"
+				/>
+			),
+			description: (
+				<CheckoutText
+					blockId={block.id}
+					path="checkoutStepDescription"
+					placeholder={getFallbackText("checkoutStepDescription")}
+					className="text-xs"
+				/>
+			),
+		},
+		{
+			disabled: !order,
+			status: order ? "finish" : undefined,
+			title: (
+				<CheckoutText
+					blockId={block.id}
+					path="doneStepTitle"
+					placeholder={getFallbackText("doneStepTitle")}
+					className="font-semibold"
+				/>
+			),
+			description: (
+				<CheckoutText
+					blockId={block.id}
+					path="doneStepDescription"
+					placeholder={getFallbackText("doneStepDescription")}
+					className="text-xs"
+				/>
+			),
+		},
+	];
 	const setItemQuantity = (itemId: string, nextQuantity: number) => {
 		desiredItemQuantitiesRef.current.set(itemId, nextQuantity);
 		const nextCart = applyItemQuantity(itemId, nextQuantity);
@@ -1079,352 +699,605 @@ const CommerceCheckoutForm = ({
 		}
 		syncItemQuantity(itemId, nextQuantity);
 	};
-
-	const cartHref = block.props.cartHref || "/checkout?checkoutStep=cart";
+	const isDoneStep = activeStep === "done";
+	const isCartStep = activeStep === "cart";
+	const cartHref = normalizeCheckoutCartHref(block.props.cartHref);
+	const checkoutStepHref = "/checkout?checkoutStep=checkout";
 	const cartCatalogHref =
 		typeof block.props.cartCatalogHref === "string" &&
 		block.props.cartCatalogHref.trim()
 			? block.props.cartCatalogHref
 			: "/catalog";
-	const continueShoppingHref =
-		typeof block.props.confirmCtaHref === "string" &&
-		block.props.confirmCtaHref.trim()
-			? block.props.confirmCtaHref
-			: "/";
+	const accountOrdersHref =
+		typeof block.props.accountOrdersHref === "string" &&
+		block.props.accountOrdersHref.trim()
+			? block.props.accountOrdersHref
+			: "/account/orders";
+	const summaryItems = cart?.items ?? [];
 	const summaryCurrency = cart?.currency ?? order?.currency ?? "KZT";
-
-	const submitOrder = useCallback(async () => {
-		if (mode !== "preview") {
-			return;
-		}
-
-		if (!isAuthenticated) {
-			requestAuth?.();
-			return;
-		}
-
-		setStatus("saving");
-
-		try {
-			let checkoutCart = cart;
-
-			if (
-				authResource?.user &&
-				checkoutCart &&
-				!checkoutCart.actor?.authenticated
-			) {
-				const syncResponse = await client.syncCurrentCart();
-				checkoutCart = syncResponse.data;
-				setCart(checkoutCart);
-				emitCommerceCartUpdated(checkoutCart);
-			}
-
-			if (!checkoutCart || checkoutCart.items.length === 0) {
-				throw new Error("Cannot place an order from an empty cart.");
-			}
-
-			// TODO: extend payload with delivery/payment details once backend supports
-			// `cartService.postOrder(formData)` semantics.
-			const customerSnapshot: Record<string, unknown> = {
-				name: formData.contact.name,
-				email: formData.contact.email,
-				phone: formData.contact.phone,
-				comment: formData.contact.comment,
-				delivery: formData.delivery,
-				payment: formData.payment,
-			};
-
-			const response = await client.checkout({
-				cartId: checkoutCart.id,
-				customerSnapshot,
-			});
-			setOrder(response.data);
-			setCart(null);
-			emitCommerceCartUpdated(null);
-			setStatus("idle");
-			// advance to next step (confirm) after success
-			goToIndex(currentStepIndex + 1);
-		} catch {
-			setStatus("error");
-		}
-	}, [
-		mode,
-		isAuthenticated,
-		requestAuth,
-		cart,
-		authResource,
-		client,
-		setCart,
-		formData,
-		goToIndex,
-		currentStepIndex,
-	]);
-
-	const renderStepIndicator = () => (
-		<ol className="mb-8 flex flex-wrap items-center gap-2 text-sm">
-			{enabledSteps.map((step, index) => {
-				const active = index === currentStepIndex;
-				const finished = index < currentStepIndex;
-				return (
-					<li key={step.id} className="flex items-center gap-2">
-						<span
-							className={`flex h-7 w-7 items-center justify-center rounded-full border text-xs font-semibold ${
-								active
-									? "border-[var(--photon-site-accent)] text-[var(--photon-site-accent)]"
-									: finished
-										? "border-[var(--photon-site-accent)] bg-[var(--photon-site-accent)] text-[var(--photon-site-background)]"
-										: `border-[color:var(--photon-site-border)] ${cx.mutedText}`
-							}`}
-						>
-							{finished ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
-						</span>
-						<span className={active || finished ? cx.strongText : cx.mutedText}>
-							{step.label}
-						</span>
-						{index < enabledSteps.length - 1 ? (
-							<span className={`mx-1 ${cx.mutedText}`}>→</span>
-						) : null}
-					</li>
-				);
-			})}
-		</ol>
-	);
-
-	const nextLabel = getFallbackText("nextLabel");
-	const prevLabel = getFallbackText("prevLabel");
-	const isLastBeforeConfirm =
-		enabledSteps[currentStepIndex + 1]?.kind === "confirm";
-	const isReviewStep = currentStepKind === "review";
-
-	let stepBody: ReactNode = null;
-
-	if (currentStepKind === "cart") {
-		stepBody = (
-			<div className="grid gap-4">
-				<EditableText
-					blockId={block.id}
-					path="cartTitle"
-					as="h1"
-					className="block text-3xl font-semibold leading-tight sm:text-4xl"
-				/>
-				{belowMinOrder ? (
-					<div
-						className={`rounded-lg border border-[color-mix(in_oklab,#ef4444_42%,var(--photon-site-border))] p-3 text-sm ${cx.errorText}`}
-					>
-						{getFallbackText("minOrderWarningLabel")} (
-						{formatCommerceMoney(minOrderAmount, summaryCurrency, contentLocale)}
-						)
-					</div>
-				) : null}
-				{hasItems ? (
-					<>
-						<CartLineItems
-							items={items}
-							currency={summaryCurrency}
-							contentLocale={contentLocale}
-							applyItemQuantity={applyItemQuantity}
-							setItemQuantity={setItemQuantity}
-						/>
-						<div
-							className={`flex items-center justify-between rounded-lg p-4 ${cx.mutedSurface}`}
-						>
-							<div className={`text-sm ${cx.mutedText}`}>
-								{getFallbackText("summaryTotalLabel")}
-							</div>
-							<div className={`text-2xl font-semibold ${cx.strongText}`}>
-								{formatCommerceMoney(cartTotal, summaryCurrency, contentLocale)}
-							</div>
+	const summaryTotal = cart?.total_amount ?? order?.total_amount ?? 0;
+	const orderItemNameLabel = contentLocale === "ru" ? "Наименование" : "Name";
+	const orderItemQuantityLabel =
+		contentLocale === "ru" ? "Количество" : "Quantity";
+	const orderItemPriceLabel = contentLocale === "ru" ? "Цена" : "Price";
+	const checkoutFields =
+		Array.isArray(block.props.fields) && block.props.fields.length > 0
+			? block.props.fields
+			: [
+					{
+						...checkoutNameField,
+						label: block.props.nameLabel ?? checkoutNameField.label,
+					},
+					{
+						...checkoutEmailField,
+						label: block.props.emailLabel ?? checkoutEmailField.label,
+					},
+					{
+						...checkoutPhoneField,
+						label: block.props.phoneLabel ?? checkoutPhoneField.label,
+					},
+				];
+	const cartList = hasItems ? (
+		<div className={`mt-8 overflow-hidden ${cx.surface}`}>
+			{items.map((item) => (
+				<div
+					key={item.id}
+					className="grid gap-4 border-b border-[color:var(--photon-site-border)] p-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto]"
+				>
+					<div className="min-w-0">
+						<div className={`font-semibold ${cx.strongText}`}>{item.name}</div>
+						<div className={`mt-1 text-sm ${cx.mutedText}`}>
+							{formatCommerceMoney(
+								item.unit_price,
+								cart?.currency ?? "KZT",
+								contentLocale,
+							)}
 						</div>
-					</>
-				) : (
-					<div className={cx.empty}>
-						<EditableText
-							blockId={block.id}
-							path="cartEmptyTitle"
-							className={`text-lg font-semibold ${cx.strongText}`}
-						/>
-						<EditableTextarea
-							blockId={block.id}
-							path="cartEmptyBody"
-							className={`mt-3 text-sm leading-7 ${cx.mutedText}`}
-						/>
-						<PhotonLink
-							href={cartCatalogHref}
-							className={`mt-6 ${cx.secondaryButton}`}
-						>
-							{getFallbackText("cartCatalogLabel")}
-						</PhotonLink>
+						<div className="mt-4 flex items-center gap-3">
+							<Counter
+								value={item.quantity}
+								min={0}
+								valueLabel={item.name ?? "Quantity"}
+								onValueChange={(nextQuantity) => {
+									const nextCart = applyItemQuantity(item.id, nextQuantity);
+
+									if (nextCart) {
+										emitCommerceCartUpdated(nextCart);
+									}
+								}}
+								onValueCommit={(nextQuantity) =>
+									setItemQuantity(item.id, nextQuantity)
+								}
+								className="h-10 min-w-32 border-[var(--photon-site-border)] bg-[color-mix(in_oklab,var(--photon-site-background)_86%,black)] text-[var(--photon-site-text)]"
+								buttonClassName="h-8 w-8 hover:bg-[color-mix(in_oklab,var(--photon-site-accent)_18%,transparent)]"
+								valueClassName="h-8"
+							/>
+							<button
+								type="button"
+								aria-label="Remove item"
+								onClick={() => setItemQuantity(item.id, 0)}
+								className={`flex h-10 w-10 items-center justify-center rounded-full border border-[color:var(--photon-site-border)] transition hover:border-[var(--photon-site-accent)] hover:text-[var(--photon-site-accent)] ${cx.mutedText}`}
+							>
+								<X className="h-4 w-4" />
+							</button>
+						</div>
 					</div>
-				)}
-			</div>
-		);
-	} else if (currentStepKind === "delivery") {
-		stepBody = (
-			<DeliveryStep
-				deliveryTypes={block.props.deliveryTypes ?? []}
-				mapEmbedUrl={
-					typeof block.props.mapEmbedUrl === "string" ? block.props.mapEmbedUrl : ""
-				}
-				delivery={formData.delivery}
-				errors={stepErrors}
-				addressLabel={getFallbackText("deliveryAddressLabel")}
-				addressPlaceholder={getFallbackText("deliveryAddressPlaceholder")}
-				pickupLabel={getFallbackText("pickupPointLabel")}
-				pickupPlaceholder={getFallbackText("pickupPointPlaceholder")}
-				onUpdate={(value) => dispatchFormData({ type: "set-delivery", value })}
-			/>
-		);
-	} else if (currentStepKind === "payment") {
-		stepBody = (
-			<PaymentStep
-				paymentTypes={block.props.paymentTypes ?? []}
-				promoEnabled={Boolean(block.props.promoEnabled)}
-				payment={formData.payment}
-				errors={stepErrors}
-				promoLabel={getFallbackText("promoCodeLabel")}
-				promoPlaceholder={getFallbackText("promoCodePlaceholder")}
-				onUpdate={(value) => dispatchFormData({ type: "set-payment", value })}
-			/>
-		);
-	} else if (currentStepKind === "review") {
-		stepBody = (
-			<ReviewStep
-				formData={formData}
-				deliveryTypes={block.props.deliveryTypes ?? []}
-				paymentTypes={block.props.paymentTypes ?? []}
-				cartTotal={cartTotal}
-				currency={summaryCurrency}
-				contentLocale={contentLocale}
-				errors={stepErrors}
-				deliveryLabel={getFallbackText("reviewDeliveryLabel")}
-				paymentLabel={getFallbackText("reviewPaymentLabel")}
-				contactLabel={getFallbackText("reviewContactLabel")}
-				totalLabel={getFallbackText("summaryTotalLabel")}
-				nameLabel={String(
-					block.props.nameLabel ?? (ru ? "Имя" : "Name"),
-				)}
-				phoneLabel={String(
-					block.props.phoneLabel ?? (ru ? "Телефон" : "Phone"),
-				)}
-				emailLabel={String(block.props.emailLabel ?? "Email")}
-				commentLabel={getFallbackText("commentLabel")}
-				commentPlaceholder={getFallbackText("commentPlaceholder")}
-				onUpdate={(value) => dispatchFormData({ type: "set-contact", value })}
-			/>
-		);
-	} else if (currentStepKind === "confirm") {
-		stepBody = (
-			<div className={`${cx.successPanel} grid gap-4 p-6 text-center`}>
-				<div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-[var(--photon-site-accent)] text-[var(--photon-site-background)]">
-					<CheckCircle2 className="h-7 w-7" />
+					<div className={`font-semibold ${cx.strongText}`}>
+						{formatCommerceMoney(
+							item.line_total,
+							cart?.currency ?? "KZT",
+							contentLocale,
+						)}
+					</div>
 				</div>
-				<h2 className={`text-2xl font-semibold ${cx.strongText}`}>
-					{getFallbackText("confirmCtaLabel")}
-				</h2>
-				<EditableTextarea
-					blockId={block.id}
-					path="successBody"
-					placeholder={getFallbackText("successBody")}
-					className={`mx-auto max-w-md text-sm ${cx.mutedText}`}
-				/>
-				{order ? (
-					<div className="flex flex-wrap items-center justify-center gap-2 text-xs">
-						<span className="rounded-full border border-[color-mix(in_oklab,var(--photon-site-accent)_42%,var(--photon-site-border))] px-3 py-1 font-semibold text-[var(--photon-site-accent)]">
-							{order.number}
-						</span>
-						<span className={cx.mutedText}>{order.status ?? ""}</span>
+			))}
+			<div
+				className={`flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between ${cx.mutedSurface}`}
+			>
+				<div>
+					<div className={`text-sm ${cx.mutedText}`}>Total</div>
+					<div className="text-2xl font-semibold">
+						{formatCommerceMoney(
+							cart?.total_amount,
+							cart?.currency ?? "KZT",
+							contentLocale,
+						)}
 					</div>
-				) : null}
-				<PhotonLink href={continueShoppingHref} className={cx.primaryButton}>
-					{getFallbackText("continueShoppingLabel")}
+				</div>
+				<PhotonLink
+					href={checkoutStepHref}
+					onClick={(event) => {
+						event.preventDefault();
+						pushCheckoutStep(1);
+					}}
+					className={cx.primaryButton}
+				>
+					{getFallbackText("cartCheckoutLabel")}
 				</PhotonLink>
 			</div>
-		);
-	}
+		</div>
+	) : (
+		<div className={cx.empty}>
+			<EditableText
+				blockId={block.id}
+				path="cartEmptyTitle"
+				className={`text-lg font-semibold ${cx.strongText}`}
+			/>
+			<EditableTextarea
+				blockId={block.id}
+				path="cartEmptyBody"
+				className={`mt-3 text-sm leading-7 ${cx.mutedText}`}
+			/>
+			<PhotonLink
+				href={cartCatalogHref}
+				className={`mt-6 ${cx.secondaryButton}`}
+			>
+				{getFallbackText("cartCatalogLabel")}
+			</PhotonLink>
+		</div>
+	);
+	const stepItems: readonly StepItem[] = isCartStep
+		? createCartSummarySteps(contentLocale)
+		: steps;
+	const handleStepChange =
+		mode === "preview" && !isCartStep
+			? (nextStep: number) => {
+					if (order && nextStep !== 2) {
+						return;
+					}
 
-	const showPrev = currentStepIndex > 0 && currentStepKind !== "confirm";
-	const showNext = currentStepKind !== "confirm";
-	const nextDisabled =
-		(currentStepKind === "cart" && (!hasItems || belowMinOrder)) ||
-		status === "saving";
-	const handleNextClick = () => {
-		if (isReviewStep && isLastBeforeConfirm) {
-			void submitOrder();
-			return;
-		}
-		goNext();
+					if ((nextStep > 0 && !hasItems) || (nextStep === 2 && !order)) {
+						return;
+					}
+
+					pushCheckoutStep(nextStep);
+				}
+			: undefined;
+	const renderCompactStep = (item: StepItem, index: number) => {
+		const isActive = index === activeStepIndex;
+		const isFinished = item.status === "finish" || index < activeStepIndex;
+		const isDisabled = Boolean(item.disabled) || !handleStepChange;
+		const clickable = !isDisabled && !isActive;
+		const indicatorClass = isActive
+			? "border-[var(--photon-site-accent)] text-[var(--photon-site-accent)]"
+			: isFinished
+				? "border-[var(--photon-site-accent)] bg-[var(--photon-site-accent)] text-[var(--photon-site-background)]"
+				: "border-[color:var(--photon-site-border)] text-[var(--photon-site-muted-text)]";
+		const textClass = isActive || isFinished ? cx.strongText : cx.mutedText;
+		const headerClass = `relative z-10 flex w-full items-start gap-3 text-left ${clickable ? "cursor-pointer" : ""}`;
+		const headerContent = (
+			<>
+				<span
+					className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-sm font-medium ${indicatorClass}`}
+				>
+					{isFinished ? <CheckCircle2 className="h-4 w-4" /> : index + 1}
+				</span>
+				<span className="min-w-0 pt-0.5">
+					<span className={`block text-sm font-semibold ${textClass}`}>
+						{item.title}
+					</span>
+					{item.description ? (
+						<span className={`mt-1 block text-xs ${cx.mutedText}`}>
+							{item.description}
+						</span>
+					) : null}
+				</span>
+			</>
+		);
+
+		return (
+			<li key={index} className="relative pb-4 last:pb-0">
+				{!isActive && index < stepItems.length - 1 ? (
+					<div className="absolute left-4 top-9 h-[calc(100%-1.25rem)] w-px bg-[color:var(--photon-site-border)]" />
+				) : null}
+				{clickable ? (
+					<button
+						type="button"
+						onClick={() => handleStepChange?.(index)}
+						className={headerClass}
+					>
+						{headerContent}
+					</button>
+				) : (
+					<div className={headerClass}>{headerContent}</div>
+				)}
+			</li>
+		);
+	};
+	const renderCompactSteps = (from: number, to: number): ReactNode => {
+		const visibleSteps = stepItems
+			.map((item, index) => ({ item, index }))
+			.filter(({ index }) => index >= from && index <= to);
+
+		return visibleSteps.length > 0 ? (
+			<ol className="grid gap-0 sm:hidden">
+				{visibleSteps.map(({ item, index }) => renderCompactStep(item, index))}
+			</ol>
+		) : null;
 	};
 
 	return (
 		<section className={`${cx.section} py-12`}>
 			<div className="mx-auto max-w-5xl">
 				<Breadcrumb className="mb-8">
-					<BreadcrumbList>
-						<BreadcrumbItem>
-							<PhotonLink href={cartHref}>
-								<CheckoutText
-									blockId={block.id}
-									path="breadcrumbCartLabel"
-									placeholder={getFallbackText("breadcrumbCartLabel")}
-									className="font-medium"
-								/>
-							</PhotonLink>
-						</BreadcrumbItem>
-						<BreadcrumbSeparator />
-						<BreadcrumbItem>
-							<BreadcrumbPage>
-								<CheckoutText
-									blockId={block.id}
-									path="breadcrumbCheckoutLabel"
-									placeholder={getFallbackText("breadcrumbCheckoutLabel")}
-									className="font-medium"
-								/>
-							</BreadcrumbPage>
-						</BreadcrumbItem>
-					</BreadcrumbList>
+					{isCartStep ? (
+						<BreadcrumbList>
+							<BreadcrumbItem>
+								<PhotonLink href={cartCatalogHref}>
+									{getFallbackText("cartCatalogLabel")}
+								</PhotonLink>
+							</BreadcrumbItem>
+							<BreadcrumbSeparator />
+							<BreadcrumbItem>
+								<BreadcrumbPage>{getFallbackText("cartTitle")}</BreadcrumbPage>
+							</BreadcrumbItem>
+						</BreadcrumbList>
+					) : (
+						<BreadcrumbList>
+							<BreadcrumbItem>
+								<PhotonLink href={cartHref}>
+									<CheckoutText
+										blockId={block.id}
+										path="breadcrumbCartLabel"
+										placeholder={getFallbackText("breadcrumbCartLabel")}
+										className="font-medium"
+									/>
+								</PhotonLink>
+							</BreadcrumbItem>
+							<BreadcrumbSeparator />
+							<BreadcrumbItem>
+								<BreadcrumbPage>
+									<CheckoutText
+										blockId={block.id}
+										path="breadcrumbCheckoutLabel"
+										placeholder={getFallbackText("breadcrumbCheckoutLabel")}
+										className="font-medium"
+									/>
+								</BreadcrumbPage>
+							</BreadcrumbItem>
+						</BreadcrumbList>
+					)}
 				</Breadcrumb>
+				{useCompactSteps ? (
+					renderCompactSteps(0, activeStepIndex)
+				) : (
+					<Steps
+						current={activeStepIndex}
+						className="mb-8"
+						items={stepItems}
+						onChange={handleStepChange}
+					/>
+				)}
+				<div
+					className={
+						useCompactSteps
+							? "mb-6 pb-2"
+							: isCartStep || isDoneStep
+								? ""
+								: "grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]"
+					}
+				>
+					<div>
+						{isCartStep ? (
+							<>
+								<EditableText
+									blockId={block.id}
+									path="cartEyebrow"
+									className={cx.eyebrow}
+								/>
+								<EditableText
+									blockId={block.id}
+									path="cartTitle"
+									as="h1"
+									className="mt-3 block text-3xl font-semibold leading-tight sm:text-5xl"
+								/>
+							</>
+						) : isDoneStep ? (
+							<>
+								<EditableText
+									blockId={block.id}
+									path="eyebrow"
+									className={cx.eyebrow}
+								/>
+								<EditableText
+									blockId={block.id}
+									path="successTitle"
+									placeholder={getFallbackText("successTitle")}
+									as="h1"
+									className="mt-3 block text-3xl font-semibold leading-tight sm:text-5xl"
+								/>
+							</>
+						) : (
+							<>
+								<EditableText
+									blockId={block.id}
+									path="eyebrow"
+									className={cx.eyebrow}
+								/>
+								<EditableText
+									blockId={block.id}
+									path="title"
+									as="h1"
+									className="mt-3 block text-3xl font-semibold leading-tight sm:text-5xl"
+								/>
+							</>
+						)}
+						{!isCartStep && !isDoneStep ? (
+							<EditableTextarea
+								blockId={block.id}
+								path="body"
+								className={`mt-4 max-w-2xl text-base leading-8 ${cx.mutedText}`}
+							/>
+						) : null}
 
-				{enabledSteps.length > 1 ? renderStepIndicator() : null}
+						{order ? (
+							<div className="mt-8 grid gap-6">
+								<div className="overflow-hidden rounded-lg border border-[color-mix(in_oklab,var(--photon-site-accent)_58%,var(--photon-site-border))] bg-[linear-gradient(135deg,color-mix(in_oklab,var(--photon-site-accent)_18%,var(--photon-site-surface)),color-mix(in_oklab,var(--photon-site-surface)_82%,var(--photon-site-background)))]">
+									<div className="grid gap-5 p-5 sm:grid-cols-[auto_minmax(0,1fr)_auto] sm:items-center sm:p-6">
+										<div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--photon-site-accent)] text-[var(--photon-site-background)]">
+											<CheckCircle2 className="h-7 w-7" />
+										</div>
+										<div className="min-w-0">
+											<EditableTextarea
+												blockId={block.id}
+												path="successBody"
+												placeholder={getFallbackText("successBody")}
+												className={`max-w-2xl text-base leading-7 ${cx.mutedText}`}
+											/>
+											<div className="mt-4 flex flex-wrap items-center gap-2">
+												<span className="rounded-full border border-[color-mix(in_oklab,var(--photon-site-accent)_42%,var(--photon-site-border))] bg-[color-mix(in_oklab,var(--photon-site-background)_64%,transparent)] px-3 py-1 text-xs font-semibold text-[var(--photon-site-accent)]">
+													{order.number}
+												</span>
+												<span className={`text-xs ${cx.mutedText}`}>
+													{order.status ?? getFallbackText("doneStepTitle")}
+												</span>
+											</div>
+										</div>
+										<PhotonLink
+											href={accountOrdersHref}
+											className={cx.primaryButton}
+										>
+											{getFallbackText("trackOrderLabel")}
+										</PhotonLink>
+									</div>
+								</div>
 
-				<div className="grid gap-6">
-					<div>{stepBody}</div>
+								<div className={`overflow-hidden ${cx.surface}`}>
+									<div className="flex flex-col gap-5 border-b border-[color:var(--photon-site-border)] p-5 sm:flex-row sm:items-start sm:justify-between sm:p-6">
+										<div className="flex min-w-0 items-start gap-3">
+											<div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-[color:var(--photon-site-border)] bg-[color-mix(in_oklab,var(--photon-site-background)_72%,transparent)] text-[var(--photon-site-accent)]">
+												<ReceiptText className="h-5 w-5" />
+											</div>
+											<div className="min-w-0">
+												<EditableText
+													blockId={block.id}
+													path="orderDetailsTitle"
+													placeholder={getFallbackText("orderDetailsTitle")}
+													className={`text-lg font-semibold ${cx.strongText}`}
+												/>
+												<div className={`mt-1 text-sm ${cx.mutedText}`}>
+													{order.items.length}{" "}
+													{contentLocale === "ru" ? "позиций" : "items"}
+												</div>
+											</div>
+										</div>
+										<div className="text-left sm:text-right">
+											<div className={`text-sm ${cx.mutedText}`}>
+												<EditableText
+													blockId={block.id}
+													path="orderTotalLabel"
+													placeholder={getFallbackText("orderTotalLabel")}
+												/>
+											</div>
+											<div
+												className={`mt-1 text-2xl font-semibold ${cx.strongText}`}
+											>
+												{formatCommerceMoney(
+													order.total_amount,
+													order.currency,
+													contentLocale,
+												)}
+											</div>
+										</div>
+									</div>
 
-					{showNext || showPrev ? (
-						<div className="flex flex-wrap items-center justify-between gap-3">
-							{showPrev ? (
+									<div className="divide-y divide-[color:var(--photon-site-border)]">
+										<div
+											className={`hidden grid-cols-[minmax(0,1fr)_7rem_11rem] gap-4 px-5 py-3 text-xs font-semibold uppercase tracking-[0.12em] sm:grid ${cx.mutedText}`}
+										>
+											<div>{orderItemNameLabel}</div>
+											<div className="text-center">
+												{orderItemQuantityLabel}
+											</div>
+											<div className="text-right">{orderItemPriceLabel}</div>
+										</div>
+										{order.items.map((item) => (
+											<div
+												key={item.id}
+												className="grid gap-4 p-4 sm:grid-cols-[minmax(0,1fr)_7rem_11rem] sm:items-center sm:p-5"
+											>
+												<div className="flex min-w-0 items-center gap-3">
+													<CommerceOrderItemMedia item={item} />
+													<div className="min-w-0">
+														<div
+															className={`truncate font-semibold ${cx.strongText}`}
+														>
+															{item.name}
+														</div>
+														{item.sku ? (
+															<div className={`mt-1 text-xs ${cx.mutedText}`}>
+																{item.sku}
+															</div>
+														) : null}
+													</div>
+												</div>
+												<div className="grid grid-cols-2 gap-3 rounded-md border border-[color:var(--photon-site-border)] bg-[color-mix(in_oklab,var(--photon-site-background)_42%,transparent)] p-3 sm:block sm:border-0 sm:bg-transparent sm:p-0 sm:text-center">
+													<div className={`text-xs sm:hidden ${cx.mutedText}`}>
+														{orderItemQuantityLabel}
+													</div>
+													<div
+														className={`text-right font-semibold sm:text-center ${cx.strongText}`}
+													>
+														{item.quantity}
+													</div>
+													<div className={`text-xs sm:hidden ${cx.mutedText}`}>
+														{orderItemPriceLabel}
+													</div>
+													<div className="text-right sm:hidden">
+														<div
+															className={`text-base font-semibold ${cx.strongText}`}
+														>
+															{formatCommerceMoney(
+																item.line_total,
+																order.currency,
+																contentLocale,
+															)}
+														</div>
+														<div className={`mt-1 text-xs ${cx.mutedText}`}>
+															{formatCommerceMoney(
+																item.unit_price,
+																order.currency,
+																contentLocale,
+															)}{" "}
+															/ {contentLocale === "ru" ? "шт." : "unit"}
+														</div>
+													</div>
+												</div>
+												<div className="hidden text-right sm:block">
+													<div
+														className={`text-lg font-semibold ${cx.strongText}`}
+													>
+														{formatCommerceMoney(
+															item.line_total,
+															order.currency,
+															contentLocale,
+														)}
+													</div>
+													<div className={`mt-1 text-xs ${cx.mutedText}`}>
+														{formatCommerceMoney(
+															item.unit_price,
+															order.currency,
+															contentLocale,
+														)}{" "}
+														/ {contentLocale === "ru" ? "шт." : "unit"}
+													</div>
+												</div>
+											</div>
+										))}
+									</div>
+								</div>
+							</div>
+						) : isCartStep ? (
+							cartList
+						) : (
+							<PhotonForm
+								blockId={block.id}
+								fieldsPath="fields"
+								definition={checkoutFormDefinition}
+								fields={checkoutFields}
+								disabled={mode !== "preview" || status === "saving"}
+								className="mt-8"
+								classNames={{
+									field: `grid gap-2 text-sm font-medium ${cx.mutedText}`,
+									label: "font-medium",
+									input: cx.input,
+									helpText: `mt-1 text-xs leading-5 ${cx.mutedText}`,
+									checkboxField: `flex items-center gap-3 text-sm font-medium ${cx.mutedText}`,
+								}}
+								onSubmitValues={async (values) => {
+									if (mode !== "preview") {
+										return;
+									}
+
+									if (!isAuthenticated) {
+										requestAuth?.();
+										return;
+									}
+
+									setStatus("saving");
+
+									try {
+										let checkoutCart = cart;
+
+										if (
+											authResource?.user &&
+											checkoutCart &&
+											!checkoutCart.actor?.authenticated
+										) {
+											const syncResponse = await client.syncCurrentCart();
+											checkoutCart = syncResponse.data;
+											setCart(checkoutCart);
+											emitCommerceCartUpdated(checkoutCart);
+										}
+
+										if (!checkoutCart || checkoutCart.items.length === 0) {
+											throw new Error(
+												"Cannot place an order from an empty cart.",
+											);
+										}
+
+										const response = await client.checkout({
+											cartId: checkoutCart.id,
+											customerSnapshot: values,
+										});
+										setOrder(response.data);
+										setCart(null);
+										emitCommerceCartUpdated(null);
+										setStatus("idle");
+										pushCheckoutStep(2);
+									} catch {
+										setStatus("error");
+									}
+								}}
+							>
 								<button
-									type="button"
-									onClick={goPrev}
-									className={cx.secondaryButton}
+									type="submit"
+									disabled={
+										status === "saving" || !cart || cart.items.length === 0
+									}
+									className={`mt-2 sm:col-span-12 ${cx.primaryButton}`}
 								>
-									{prevLabel}
+									<EditableText
+										blockId={block.id}
+										path={status === "saving" ? "savingLabel" : "submitLabel"}
+										placeholder={
+											status === "saving"
+												? getFallbackText("savingLabel")
+												: getFallbackText("submitLabel")
+										}
+										className="font-semibold"
+									/>
 								</button>
-							) : (
-								<span />
-							)}
-							{showNext ? (
-								<button
-									type="button"
-									onClick={handleNextClick}
-									disabled={nextDisabled}
-									className={cx.primaryButton}
-								>
-									{status === "saving"
-										? getFallbackText("savingLabel")
-										: isLastBeforeConfirm && isReviewStep
-											? getFallbackText("submitLabel")
-											: nextLabel}
-								</button>
-							) : null}
-						</div>
-					) : null}
+								{status === "error" ? (
+									<EditableText
+										blockId={block.id}
+										path="errorLabel"
+										placeholder={getFallbackText("errorLabel")}
+										className={`text-sm sm:col-span-12 ${cx.errorText}`}
+									/>
+								) : null}
+							</PhotonForm>
+						)}
+					</div>
 
-					{status === "error" ? (
-						<div className={`text-sm ${cx.errorText}`}>
-							{getFallbackText("errorLabel")}
-						</div>
-					) : null}
+					{isCartStep || isDoneStep ? null : (
+						<CommerceCheckoutSummary
+							blockId={block.id}
+							cartHref={cartHref}
+							contentLocale={contentLocale}
+							currency={summaryCurrency}
+							emptyBody={getFallbackText("summaryEmptyBody")}
+							items={summaryItems}
+							returnLabel={getFallbackText("summaryReturnLabel")}
+							title={getFallbackText("summaryTitle")}
+							total={summaryTotal}
+							totalLabel={getFallbackText("summaryTotalLabel")}
+						/>
+					)}
 				</div>
+				{useCompactSteps
+					? renderCompactSteps(activeStepIndex + 1, stepItems.length - 1)
+					: null}
 			</div>
 		</section>
 	);
@@ -1593,79 +1466,6 @@ export const commerceCheckoutFormDefinition: PhotonBlockDefinition<CommerceCheck
 			}),
 			cartHref: "/checkout?checkoutStep=cart",
 			accountOrdersHref: "/account/orders",
-			steps: defaultCheckoutSteps,
-			paymentTypes: [],
-			deliveryTypes: [],
-			mapEmbedUrl: "",
-			promoEnabled: false,
-			minOrderAmount: 0,
-			nextLabel: createPhotonLocalizedDefault({ en: "Next", ru: "Далее" }),
-			prevLabel: createPhotonLocalizedDefault({ en: "Back", ru: "Назад" }),
-			deliveryAddressLabel: createPhotonLocalizedDefault({
-				en: "Delivery address",
-				ru: "Адрес доставки",
-			}),
-			deliveryAddressPlaceholder: createPhotonLocalizedDefault({
-				en: "Enter address",
-				ru: "Введите адрес",
-			}),
-			pickupPointLabel: createPhotonLocalizedDefault({
-				en: "Pickup point",
-				ru: "Точка самовывоза",
-			}),
-			pickupPointPlaceholder: createPhotonLocalizedDefault({
-				en: "Choose pickup point",
-				ru: "Выберите точку",
-			}),
-			promoCodeLabel: createPhotonLocalizedDefault({
-				en: "Promo code",
-				ru: "Промокод",
-			}),
-			promoCodePlaceholder: createPhotonLocalizedDefault({
-				en: "Enter promo code",
-				ru: "Введите промокод",
-			}),
-			commentLabel: createPhotonLocalizedDefault({
-				en: "Comment",
-				ru: "Комментарий",
-			}),
-			commentPlaceholder: createPhotonLocalizedDefault({
-				en: "Order notes",
-				ru: "Пожелания к заказу",
-			}),
-			reviewTitle: createPhotonLocalizedDefault({
-				en: "Review",
-				ru: "Проверка заказа",
-			}),
-			reviewDeliveryLabel: createPhotonLocalizedDefault({
-				en: "Delivery",
-				ru: "Доставка",
-			}),
-			reviewPaymentLabel: createPhotonLocalizedDefault({
-				en: "Payment",
-				ru: "Оплата",
-			}),
-			reviewContactLabel: createPhotonLocalizedDefault({
-				en: "Contact",
-				ru: "Контакты",
-			}),
-			confirmCtaLabel: createPhotonLocalizedDefault({
-				en: "Order placed!",
-				ru: "Заказ оформлен!",
-			}),
-			confirmCtaHref: "/",
-			minOrderWarningLabel: createPhotonLocalizedDefault({
-				en: "Minimum order amount not reached.",
-				ru: "Минимальная сумма заказа не достигнута.",
-			}),
-			cartHeadingLabel: createPhotonLocalizedDefault({
-				en: "Your cart",
-				ru: "Ваша корзина",
-			}),
-			continueShoppingLabel: createPhotonLocalizedDefault({
-				en: "Continue shopping",
-				ru: "Продолжить покупки",
-			}),
 		},
 		fields: [
 			{
@@ -1907,233 +1707,6 @@ export const commerceCheckoutFormDefinition: PhotonBlockDefinition<CommerceCheck
 				group: "data",
 				localization: "shared",
 			},
-			{
-				path: "steps",
-				label: "Checkout steps",
-				kind: "repeater",
-				group: "layout",
-				localization: "shared",
-				itemLabelPath: "label",
-				addLabel: "Add step",
-				fields: [
-					{ path: "id", label: "Id", kind: "text" },
-					{
-						path: "kind",
-						label: "Kind",
-						kind: "select",
-						options: [
-							{ value: "cart", label: "Cart" },
-							{ value: "delivery", label: "Delivery" },
-							{ value: "payment", label: "Payment" },
-							{ value: "review", label: "Review" },
-							{ value: "confirm", label: "Confirm" },
-						],
-					},
-					{ path: "label", label: "Label", kind: "text" },
-					{ path: "enabled", label: "Enabled", kind: "toggle" },
-				],
-			},
-			{
-				path: "deliveryTypes",
-				label: "Delivery types",
-				kind: "repeater",
-				group: "data",
-				localization: "shared",
-				itemLabelPath: "label",
-				addLabel: "Add delivery type",
-				fields: [
-					{ path: "id", label: "Id", kind: "text" },
-					{ path: "label", label: "Label", kind: "text" },
-					{
-						path: "kind",
-						label: "Kind",
-						kind: "select",
-						options: [
-							{ value: "delivery", label: "Delivery" },
-							{ value: "pickup", label: "Pickup" },
-						],
-					},
-				],
-			},
-			{
-				path: "paymentTypes",
-				label: "Payment types",
-				kind: "repeater",
-				group: "data",
-				localization: "shared",
-				itemLabelPath: "label",
-				addLabel: "Add payment type",
-				fields: [
-					{ path: "id", label: "Id", kind: "text" },
-					{ path: "label", label: "Label", kind: "text" },
-					{
-						path: "kind",
-						label: "Kind",
-						kind: "select",
-						options: [
-							{ value: "cash", label: "Cash" },
-							{ value: "card-online", label: "Card (online)" },
-							{ value: "kaspi", label: "Kaspi" },
-							{ value: "custom", label: "Custom" },
-						],
-					},
-				],
-			},
-			{
-				path: "mapEmbedUrl",
-				label: "Map embed URL",
-				kind: "url",
-				group: "data",
-				localization: "shared",
-			},
-			{
-				path: "promoEnabled",
-				label: "Enable promo code",
-				kind: "toggle",
-				group: "layout",
-				localization: "shared",
-			},
-			{
-				path: "minOrderAmount",
-				label: "Minimum order amount (cents)",
-				kind: "number",
-				group: "data",
-				localization: "shared",
-				min: 0,
-			},
-			{
-				path: "nextLabel",
-				label: "Next button label",
-				kind: "text",
-				group: "content",
-				localization: "localized",
-			},
-			{
-				path: "prevLabel",
-				label: "Back button label",
-				kind: "text",
-				group: "content",
-				localization: "localized",
-			},
-			{
-				path: "deliveryAddressLabel",
-				label: "Delivery address label",
-				kind: "text",
-				group: "content",
-				localization: "localized",
-			},
-			{
-				path: "deliveryAddressPlaceholder",
-				label: "Delivery address placeholder",
-				kind: "text",
-				group: "content",
-				localization: "localized",
-			},
-			{
-				path: "pickupPointLabel",
-				label: "Pickup point label",
-				kind: "text",
-				group: "content",
-				localization: "localized",
-			},
-			{
-				path: "pickupPointPlaceholder",
-				label: "Pickup point placeholder",
-				kind: "text",
-				group: "content",
-				localization: "localized",
-			},
-			{
-				path: "promoCodeLabel",
-				label: "Promo code label",
-				kind: "text",
-				group: "content",
-				localization: "localized",
-			},
-			{
-				path: "promoCodePlaceholder",
-				label: "Promo code placeholder",
-				kind: "text",
-				group: "content",
-				localization: "localized",
-			},
-			{
-				path: "commentLabel",
-				label: "Comment label",
-				kind: "text",
-				group: "content",
-				localization: "localized",
-			},
-			{
-				path: "commentPlaceholder",
-				label: "Comment placeholder",
-				kind: "text",
-				group: "content",
-				localization: "localized",
-			},
-			{
-				path: "reviewTitle",
-				label: "Review title",
-				kind: "text",
-				group: "content",
-				localization: "localized",
-			},
-			{
-				path: "reviewDeliveryLabel",
-				label: "Review delivery label",
-				kind: "text",
-				group: "content",
-				localization: "localized",
-			},
-			{
-				path: "reviewPaymentLabel",
-				label: "Review payment label",
-				kind: "text",
-				group: "content",
-				localization: "localized",
-			},
-			{
-				path: "reviewContactLabel",
-				label: "Review contact label",
-				kind: "text",
-				group: "content",
-				localization: "localized",
-			},
-			{
-				path: "confirmCtaLabel",
-				label: "Confirm CTA label",
-				kind: "text",
-				group: "content",
-				localization: "localized",
-			},
-			{
-				path: "confirmCtaHref",
-				label: "Confirm CTA URL",
-				kind: "text",
-				group: "data",
-				localization: "shared",
-			},
-			{
-				path: "continueShoppingLabel",
-				label: "Continue shopping label",
-				kind: "text",
-				group: "content",
-				localization: "localized",
-			},
-			{
-				path: "minOrderWarningLabel",
-				label: "Minimum order warning label",
-				kind: "text",
-				group: "content",
-				localization: "localized",
-			},
-			{
-				path: "cartHeadingLabel",
-				label: "Cart heading label",
-				kind: "text",
-				group: "content",
-				localization: "localized",
-			},
 		],
 		localizationSchema: {
 			localized: [
@@ -2175,27 +1748,6 @@ export const commerceCheckoutFormDefinition: PhotonBlockDefinition<CommerceCheck
 				"summaryTotalLabel",
 				"title",
 				"trackOrderLabel",
-				"nextLabel",
-				"prevLabel",
-				"deliveryAddressLabel",
-				"deliveryAddressPlaceholder",
-				"pickupPointLabel",
-				"pickupPointPlaceholder",
-				"promoCodeLabel",
-				"promoCodePlaceholder",
-				"commentLabel",
-				"commentPlaceholder",
-				"reviewTitle",
-				"reviewDeliveryLabel",
-				"reviewPaymentLabel",
-				"reviewContactLabel",
-				"confirmCtaLabel",
-				"continueShoppingLabel",
-				"minOrderWarningLabel",
-				"cartHeadingLabel",
-				"steps.*.label",
-				"deliveryTypes.*.label",
-				"paymentTypes.*.label",
 			],
 			shared: [
 				"accountOrdersHref",
@@ -2209,17 +1761,6 @@ export const commerceCheckoutFormDefinition: PhotonBlockDefinition<CommerceCheck
 				"fields.*.required",
 				"fields.*.type",
 				"fields.*.width",
-				"confirmCtaHref",
-				"mapEmbedUrl",
-				"promoEnabled",
-				"minOrderAmount",
-				"steps.*.id",
-				"steps.*.kind",
-				"steps.*.enabled",
-				"deliveryTypes.*.id",
-				"deliveryTypes.*.kind",
-				"paymentTypes.*.id",
-				"paymentTypes.*.kind",
 			],
 		},
 		component: CommerceCheckoutForm,

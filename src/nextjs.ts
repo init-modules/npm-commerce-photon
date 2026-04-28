@@ -12,11 +12,17 @@ import {
 import type {
 	PhotonBlock,
 	PhotonDocument,
+	PhotonPageRuntimeData,
 	PhotonResources,
 	PhotonSearchResult,
 } from "@init/photon";
 import { createPhotonServerModule } from "@init/photon-nextjs/server";
 import { cache } from "react";
+import {
+	COMMERCE_TAXONOMY_CATEGORIES_SOURCE,
+	COMMERCE_TAXONOMY_INGREDIENTS_SOURCE,
+	type CommerceTaxonomyTermView,
+} from "./bindings";
 
 type CommercePhotonApiClient = {
 	request<T = unknown>(config: {
@@ -65,6 +71,7 @@ type CommerceResolvedPage = {
 		route: string;
 	};
 	resources: PhotonResources;
+	runtimeData?: PhotonPageRuntimeData;
 };
 
 class CommerceCatalogItemNotFoundError extends Error {
@@ -100,6 +107,107 @@ const findCommerceBlocks = (
 			findCommerceBlocks(area.blocks, predicate),
 		),
 	]);
+
+const collectCommerceTaxonomyBindingTaxonomies = (
+	document: PhotonDocument,
+): string[] => {
+	const collected = new Set<string>();
+
+	const visit = (blocks: readonly PhotonBlock[] | undefined) => {
+		(blocks ?? []).forEach((block) => {
+			Object.values(block.bindings ?? {}).forEach((binding) => {
+				if (
+					binding.source === COMMERCE_TAXONOMY_CATEGORIES_SOURCE &&
+					typeof binding.path === "string" &&
+					binding.path.length > 0
+				) {
+					collected.add(binding.path);
+				}
+			});
+			(block.areas ?? []).forEach((area) => visit(area.blocks));
+		});
+	};
+
+	visit(document.blocks);
+
+	return Array.from(collected);
+};
+
+const collectCommerceIngredientBindingTaxonomies = (
+	document: PhotonDocument,
+): string[] => {
+	const collected = new Set<string>();
+
+	const visit = (blocks: readonly PhotonBlock[] | undefined) => {
+		(blocks ?? []).forEach((block) => {
+			Object.values(block.bindings ?? {}).forEach((binding) => {
+				if (
+					binding.source === COMMERCE_TAXONOMY_INGREDIENTS_SOURCE &&
+					typeof binding.path === "string" &&
+					binding.path.length > 0
+				) {
+					collected.add(binding.path);
+				}
+			});
+			(block.areas ?? []).forEach((area) => visit(area.blocks));
+		});
+	};
+
+	visit(document.blocks);
+
+	return Array.from(collected);
+};
+
+const coerceCommerceTaxonomyTerms = (
+	value: unknown,
+): readonly CommerceTaxonomyTermView[] => {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+
+	return value
+		.map((item) => {
+			if (!item || typeof item !== "object") {
+				return null;
+			}
+
+			const record = item as Record<string, unknown>;
+			const id = typeof record.id === "string" ? record.id : null;
+			const slug = typeof record.slug === "string" ? record.slug : null;
+			const label = typeof record.label === "string" ? record.label : null;
+			const href = typeof record.href === "string" ? record.href : null;
+
+			if (!id || !slug || !label || !href) {
+				return null;
+			}
+
+			const icon = typeof record.icon === "string" ? record.icon : undefined;
+
+			return { id, slug, label, icon, href } satisfies CommerceTaxonomyTermView;
+		})
+		.filter((term): term is CommerceTaxonomyTermView => term !== null);
+};
+
+const readCommerceTaxonomyTermsFromRuntimeData = (
+	runtimeData: PhotonPageRuntimeData | undefined,
+	taxonomy: string,
+): readonly CommerceTaxonomyTermView[] => {
+	const commerce = (runtimeData ?? {})["commerce"];
+
+	if (!commerce || typeof commerce !== "object") {
+		return [];
+	}
+
+	const taxonomyTerms = (commerce as Record<string, unknown>)["taxonomyTerms"];
+
+	if (!taxonomyTerms || typeof taxonomyTerms !== "object") {
+		return [];
+	}
+
+	return coerceCommerceTaxonomyTerms(
+		(taxonomyTerms as Record<string, unknown>)[taxonomy],
+	);
+};
 
 const getCommerceOrderListBlocks = (document: PhotonDocument) =>
 	findCommerceBlocks(
@@ -501,6 +609,50 @@ export const withCommerceResources = async <TPage extends CommerceResolvedPage>(
 			status: "ready",
 			limit,
 		};
+	}
+
+	const taxonomyKeys = collectCommerceTaxonomyBindingTaxonomies(page.document);
+
+	if (taxonomyKeys.length > 0) {
+		const previous =
+			(nextResources[COMMERCE_TAXONOMY_CATEGORIES_SOURCE] as
+				| Record<string, readonly CommerceTaxonomyTermView[]>
+				| undefined) ?? {};
+		const taxonomyEntries: Record<string, readonly CommerceTaxonomyTermView[]> =
+			{ ...previous };
+
+		for (const taxonomy of taxonomyKeys) {
+			taxonomyEntries[taxonomy] = readCommerceTaxonomyTermsFromRuntimeData(
+				page.runtimeData,
+				taxonomy,
+			);
+		}
+
+		nextResources[COMMERCE_TAXONOMY_CATEGORIES_SOURCE] = taxonomyEntries;
+	}
+
+	const ingredientKeys = collectCommerceIngredientBindingTaxonomies(
+		page.document,
+	);
+
+	if (ingredientKeys.length > 0) {
+		const previous =
+			(nextResources[COMMERCE_TAXONOMY_INGREDIENTS_SOURCE] as
+				| Record<string, readonly CommerceTaxonomyTermView[]>
+				| undefined) ?? {};
+		const ingredientEntries: Record<
+			string,
+			readonly CommerceTaxonomyTermView[]
+		> = { ...previous };
+
+		for (const taxonomy of ingredientKeys) {
+			ingredientEntries[taxonomy] = readCommerceTaxonomyTermsFromRuntimeData(
+				page.runtimeData,
+				taxonomy,
+			);
+		}
+
+		nextResources[COMMERCE_TAXONOMY_INGREDIENTS_SOURCE] = ingredientEntries;
 	}
 
 	return {

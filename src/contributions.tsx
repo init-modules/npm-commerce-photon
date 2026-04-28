@@ -10,6 +10,7 @@ import {
 } from "@init/photon";
 import { PhotonLink } from "@init/photon/public";
 import { ShoppingCart } from "lucide-react";
+import { formatCommerceMoney } from "./blocks/shared";
 
 const commerceCheckoutCartHref = "/checkout?checkoutStep=cart";
 
@@ -103,11 +104,14 @@ export const commerceCatalogLinkContribution =
 
 // --- Cart action (header.actions) -------------------------------------
 
+type CartActionVariant = "icon" | "qty-total";
+
 type CartActionDefaults = {
 	enabled?: boolean;
 	order?: number;
 	label?: Record<string, string>;
 	href?: string;
+	variant?: CartActionVariant;
 };
 
 const CommerceCartActionComponent = (
@@ -116,12 +120,43 @@ const CommerceCartActionComponent = (
 	const cart = useCommerceCartStore((state) => state.cart);
 	const quantity = getCommerceCartQuantity(cart);
 	const ariaLabel = pickLocalized(props.label, "Cart");
+	const variant: CartActionVariant = props.variant ?? "qty-total";
+	const href = props.href ?? commerceCheckoutCartHref;
+
+	if (variant === "qty-total") {
+		const currency =
+			typeof cart?.currency === "string" && cart.currency.length > 0
+				? cart.currency
+				: "KZT";
+		const total = formatCommerceMoney(
+			cart?.total_amount ?? cart?.subtotal_amount ?? 0,
+			currency,
+		);
+
+		return (
+			<PhotonLink
+				href={href}
+				aria-label={ariaLabel}
+				data-photon-header-cart-link="true"
+				data-photon-header-cart-variant="qty-total"
+				className="inline-flex items-center gap-2 rounded-full border border-[var(--photon-site-border)] px-3 py-1.5 text-sm text-[var(--photon-site-text)] transition hover:border-[var(--photon-site-accent)] hover:text-[var(--photon-site-accent)]"
+			>
+				<ShoppingCart className="h-4 w-4" />
+				<span className="tabular-nums font-medium">{quantity}</span>
+				<span aria-hidden="true" className="opacity-60">
+					·
+				</span>
+				<span className="tabular-nums font-semibold">{total}</span>
+			</PhotonLink>
+		);
+	}
 
 	return (
 		<PhotonLink
-			href={props.href ?? commerceCheckoutCartHref}
+			href={href}
 			aria-label={ariaLabel}
 			data-photon-header-cart-link="true"
+			data-photon-header-cart-variant="icon"
 			className="relative inline-flex h-11 w-11 items-center justify-center rounded-full border border-[var(--photon-site-border)] text-[var(--photon-site-text)] transition hover:border-[var(--photon-site-accent)] hover:text-[var(--photon-site-accent)]"
 		>
 			<ShoppingCart className="h-5 w-5" />
@@ -143,6 +178,7 @@ export const commerceCartContribution = definePhotonSiteFrameContribution({
 		order: 20,
 		label: { ru: "Корзина", en: "Cart" },
 		href: commerceCheckoutCartHref,
+		variant: "qty-total",
 	} satisfies CartActionDefaults,
 	configurable: {
 		enabled: { kind: "toggle", label: "Show cart" },

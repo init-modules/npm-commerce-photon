@@ -35,27 +35,44 @@ const hasCommerceBlock = (
 		return (item.areas ?? []).some((area) => hasCommerceBlock(area.blocks));
 	});
 
-const hasCommerceRuntimeResource = (context: PhotonSiteFrameExtensionContext) =>
-	[
-		"commerceCatalog",
-		"commerceCatalogItem",
-		"commerceProduct",
-		"commerceCheckout",
-		"commerceOrder",
-	].some((key) => context.resources[key] !== undefined) ||
-	getCommerceCartQuantity(
-		context.resources.commerceCartSummary as
-			| { items_quantity?: unknown; item_count?: unknown }
-			| null
-			| undefined,
-	) > 0;
+const hasCommerceRuntimeResource = (
+	context: PhotonSiteFrameExtensionContext,
+) => {
+	const resources = context?.resources;
+	if (!resources) return false;
+	return (
+		[
+			"commerceCatalog",
+			"commerceCatalogItem",
+			"commerceProduct",
+			"commerceCheckout",
+			"commerceOrder",
+		].some((key) => resources[key] !== undefined) ||
+		getCommerceCartQuantity(
+			resources.commerceCartSummary as
+				| { items_quantity?: unknown; item_count?: unknown }
+				| null
+				| undefined,
+		) > 0
+	);
+};
 
-const isCommerceSiteFrameVisible = (context: PhotonSiteFrameExtensionContext) =>
-	hasCommerceBlock(context.document.blocks) ||
-	Object.values(context.site.regions).some((region) =>
-		hasCommerceBlock(region.document.blocks),
-	) ||
-	hasCommerceRuntimeResource(context);
+const isCommerceSiteFrameVisible = (
+	context: PhotonSiteFrameExtensionContext,
+) => {
+	if (!context) return false;
+	const documentBlocks = context.document?.blocks;
+	const siteRegions = context.site?.regions;
+	return (
+		hasCommerceBlock(documentBlocks) ||
+		(siteRegions
+			? Object.values(siteRegions).some((region) =>
+					hasCommerceBlock(region?.document?.blocks),
+				)
+			: false) ||
+		hasCommerceRuntimeResource(context)
+	);
+};
 
 const CommerceHeaderCartAction = ({
 	action,

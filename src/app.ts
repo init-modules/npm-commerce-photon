@@ -1,3 +1,4 @@
+import { coerceInterfaceLocale } from "@init/photon/shared";
 import {
 	createPhotonAppModule,
 	createPhotonSourceIdProfileTreeResolver,
@@ -23,8 +24,16 @@ import {
 	type CommercePhotonLocale,
 } from "./documents";
 
+const COMMERCE_PHOTON_SUPPORTED_LOCALES: readonly CommercePhotonLocale[] = [
+	"en",
+	"ru",
+];
+
 const coerceCommercePhotonLocale = (locale: string): CommercePhotonLocale =>
-	locale === "ru" ? "ru" : "en";
+	coerceInterfaceLocale(locale, {
+		supported: COMMERCE_PHOTON_SUPPORTED_LOCALES,
+		fallback: "en",
+	}) as CommercePhotonLocale;
 
 export type CreateCommercePhotonAppModuleOptions = {
 	services?: PhotonAppModuleServiceMap;
